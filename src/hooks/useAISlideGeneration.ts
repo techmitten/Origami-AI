@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { generateSlidesScript, clampSlideCount, type SlideTone } from '../services/slidesScriptService';
+import { generateSlidesScript, clampSlideCount, type SlideTone, type SlidesScript } from '../services/slidesScriptService';
 import { generateImage, resolvePollinationsKey, DEFAULT_POLLINATIONS_IMAGE_MODEL } from '../services/pollinationsService';
 import { composeSlideImage, composeSlidePlaceholder, slideDimensionsFor } from '../services/slideImageComposer';
 import type { LLMSettings } from '../services/aiService';
@@ -15,11 +15,13 @@ export interface GenerateDeckRequest {
 }
 
 /**
- * Orchestrates the "Create Slides" AI flow: LLM writes the deck outline (title/bullets/
- * narration/image prompt per slide), then Pollinations generates a background image for
- * each slide, one at a time (mirrors useShortsGeneration.ts's sequential per-scene loop,
- * which avoids hitting Pollinations' per-model concurrency gate). A failed slide image
- * falls back to a plain gradient rather than aborting the whole deck.
+ * Orchestrates the "Create Slides" AI flow in two steps the user can gate on approval:
+ * `generateOutline` has the LLM write the deck outline (title/bullets/narration/image
+ * prompt per slide) for review, and `generateFromOutline` then has Pollinations generate
+ * a background image for each approved slide, one at a time (mirrors
+ * useShortsGeneration.ts's sequential per-scene loop, which avoids hitting Pollinations'
+ * per-model concurrency gate). A failed slide image falls back to a plain gradient rather
+ * than aborting the whole deck.
  */
 export function useAISlideGeneration(globalSettings: GlobalSettings | null | undefined) {
   const [isBusy, setIsBusy] = useState(false);
@@ -31,12 +33,11 @@ export function useAISlideGeneration(globalSettings: GlobalSettings | null | und
     abortControllerRef.current?.abort();
   }, []);
 
-  const generate = useCallback(async (req: GenerateDeckRequest): Promise<SlideData[]> => {
+  const generateOutline = useCallback(async (req: GenerateDeckRequest): Promise<SlidesScript> => {
     const controller = new AbortController();
     abortControllerRef.current = controller;
     setIsBusy(true);
     setBusyLabel('Writing the outline...');
-    setSlideProgress({});
 
     try {
       const useOpenAI = !!globalSettings?.useOpenAIForSlideGen;
@@ -47,7 +48,7 @@ export function useAISlideGeneration(globalSettings: GlobalSettings | null | und
         openaiDisableThinking: globalSettings?.openaiDisableThinking !== false,
       };
 
-      const script = await generateSlidesScript(
+      return await generateSlidesScript(
         { topic: req.topic, slideCount: clampSlideCount(req.slideCount), tone: req.tone },
         {
           useOpenAI,
@@ -57,7 +58,20 @@ export function useAISlideGeneration(globalSettings: GlobalSettings | null | und
           signal: controller.signal,
         },
       );
+    } finally {
+      setIsBusy(false);
+      abortControllerRef.current = null;
+    }
+  }, [globalSettings]);
 
+  const generateFromOutline = useCallback(async (script: SlidesScript): Promise<SlideData[]> => {
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    setIsBusy(true);
+    setBusyLabel('Generating slide 1...');
+    setSlideProgress({});
+
+    try {
       const dims = slideDimensionsFor();
       const pollinationsKey = resolvePollinationsKey(globalSettings?.pollinationsApiKey, globalSettings?.pollinationsTokenExpiresAt);
       const imageModel = globalSettings?.pollinationsImageModel || DEFAULT_POLLINATIONS_IMAGE_MODEL;
@@ -115,5 +129,5 @@ export function useAISlideGeneration(globalSettings: GlobalSettings | null | und
     }
   }, [globalSettings]);
 
-  return { generate, cancel, isBusy, busyLabel, slideProgress };
+  return { generateOutline, generateFromOutline, cancel, isBusy, busyLabel, slideProgress };
 }

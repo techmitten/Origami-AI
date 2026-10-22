@@ -149,6 +149,18 @@ No commentary, no headers, no markdown, no blank lines between slides.`;
 
 type ParsedSlide = Partial<SlidesScriptSlide>;
 
+/**
+ * Matches one "N. LABEL: content" line. The label must sit immediately after the optional
+ * slide-number prefix — no wildcard scan is allowed to find it later in the line. Line-parsing
+ * used to search for each keyword anywhere in the line (`.*?TITLE.*?`), so a descriptive IMAGE
+ * line like "a notebook page titled: Version History" would spuriously match the TITLE pattern
+ * (checked first) and get misfiled as the slide's title — silently discarding the real image
+ * prompt and corrupting the title, which is what made generated backgrounds look unrelated to
+ * the slide/topic. Anchoring the label to the start of the line prevents any field's prose from
+ * being mistaken for a different field's marker.
+ */
+const LABEL_LINE_RE = /^(?:\s*(?:slide|scene|step)\s*)?(\d+)?\s*[.):-]?\s*(TITLE|BULLETS?|NARRATION|IMAGE|VISUAL|PROMPT)\b\s*[:.\-–]\s*(.+)$/i;
+
 const parseCombinedSlides = (raw: string): Map<number, ParsedSlide> => {
   const lines = stripWrapper(raw).split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
   const byIndex = new Map<number, ParsedSlide>();
@@ -160,36 +172,30 @@ const parseCombinedSlides = (raw: string): Map<number, ParsedSlide> => {
   };
 
   for (const line of lines) {
-    const titleMatch = line.match(/^(?:.*?slide\s*)?(\d+)?.*?TITLE.*?[:.\-–]\s*(.+)$/i);
-    if (titleMatch) {
-      currentSlide = titleMatch[1] ? Number(titleMatch[1]) : currentSlide + 1;
-      setField(currentSlide, 'title', stripLineDecoration(titleMatch[2]));
+    const match = line.match(LABEL_LINE_RE);
+    if (!match) continue;
+
+    const [, numStr, labelRaw, contentRaw] = match;
+    const label = labelRaw.toUpperCase();
+
+    if (label === 'TITLE') {
+      currentSlide = numStr ? Number(numStr) : currentSlide + 1;
+      setField(currentSlide, 'title', stripLineDecoration(contentRaw));
       continue;
     }
 
-    const bulletsMatch = line.match(/^(?:.*?slide\s*)?(\d+)?.*?BULLETS?.*?[:.\-–]\s*(.+)$/i);
-    if (bulletsMatch) {
-      const idx = bulletsMatch[1] ? Number(bulletsMatch[1]) : currentSlide;
-      const bullets = bulletsMatch[2]
+    const idx = numStr ? Number(numStr) : currentSlide;
+    if (label === 'BULLETS' || label === 'BULLET') {
+      const bullets = contentRaw
         .split(/\s*[|•]\s*|\s*;\s*/)
         .map(stripLineDecoration)
         .filter((b) => b.length > 0);
       setField(idx, 'bullets', bullets);
-      continue;
-    }
-
-    const narrationMatch = line.match(/^(?:.*?slide\s*)?(\d+)?.*?NARRATION.*?[:.\-–]\s*(.+)$/i);
-    if (narrationMatch) {
-      const idx = narrationMatch[1] ? Number(narrationMatch[1]) : currentSlide;
-      setField(idx, 'narration', normalizeLine(narrationMatch[2]));
-      continue;
-    }
-
-    const imageMatch = line.match(/^(?:.*?slide\s*)?(\d+)?.*?(?:IMAGE|VISUAL|PROMPT).*?[:.\-–]\s*(.+)$/i);
-    if (imageMatch) {
-      const idx = imageMatch[1] ? Number(imageMatch[1]) : currentSlide;
-      setField(idx, 'imagePrompt', stripLineDecoration(imageMatch[2]));
-      continue;
+    } else if (label === 'NARRATION') {
+      setField(idx, 'narration', normalizeLine(contentRaw));
+    } else {
+      // IMAGE | VISUAL | PROMPT
+      setField(idx, 'imagePrompt', stripLineDecoration(contentRaw));
     }
   }
 
