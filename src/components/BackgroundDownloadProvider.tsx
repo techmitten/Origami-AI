@@ -3,8 +3,8 @@ import { BackgroundDownloadToast } from './BackgroundDownloadToast';
 import { BackgroundDownloadContext, type DownloadQueue } from '../context/BackgroundDownloadContext';
 
 /**
- * Owns the background download state and renders the progress toast above the
- * router, so the toast survives navigation (e.g. opening /assistant while
+ * Owns the background download state and renders the progress modal above the
+ * router, so the modal survives navigation (e.g. opening /assistant while
  * resources are still downloading) instead of unmounting with the page.
  */
 export const BackgroundDownloadProvider: React.FC<{ children: ReactNode }> = ({ children }) => {

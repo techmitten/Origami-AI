@@ -90,7 +90,7 @@ export function DownloadBlockedModal({ isOpen, onClose, actionLabel }: DownloadB
             <p className="text-xs text-slate-300 leading-relaxed">
               You can monitor the download progress in the{' '}
               <span className="text-slate-100 font-medium">Downloading resources…</span>{' '}
-              notification in the bottom-right corner of the screen. This is a one-time download — it will be much faster on subsequent visits.
+              modal in the center of the screen. This is a one-time download — it will be much faster on subsequent visits.
             </p>
           </div>
         </div>
