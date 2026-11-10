@@ -16,6 +16,7 @@ const FRAGMENT = `#version 300 es
 precision highp float;
 uniform vec2 uResolution;
 uniform float uTime;
+uniform float uGalaxy;
 uniform float uRotation;
 uniform vec2 uReach;
 uniform float uNear;
@@ -66,6 +67,37 @@ float light1(float intensity, float attenuation, float dist) {
 
 float light2(float intensity, float attenuation, float dist) {
   return intensity / (1.0 + dist * dist * attenuation);
+}
+
+vec3 galaxy(vec2 uv) {
+  float t = uTime * 0.055;
+  float angle = t + length(uv) * 1.8;
+  mat2 spin = mat2(cos(angle), -sin(angle), sin(angle), cos(angle));
+  vec2 p = spin * uv;
+  vec2 flow = vec2(
+    snoise3(vec3(p * 2.4, t)),
+    snoise3(vec3(p * 2.4 + 7.0, t))
+  );
+  float cloud = snoise3(vec3(p * 3.0 + flow * 0.7, t * 0.8)) * 0.5 + 0.5;
+  float dust = snoise3(vec3(p * 7.0 + flow, t)) * 0.5 + 0.5;
+  float ribbon = exp(-pow((p.y + flow.x * 0.2) * 3.5, 2.0));
+  vec3 color = vec3(0.008, 0.012, 0.035);
+  color += mix(vec3(0.09, 0.035, 0.22), uColor1 * 0.3, cloud)
+    * ribbon * (0.3 + cloud * dust * 1.4);
+  // Separate depths drift through the same swirling field with soft twinkling.
+  for (int layer = 0; layer < 3; layer++) {
+    float depth = float(layer);
+    vec2 grid = (p + flow * 0.025 + vec2(t * (0.08 + depth * 0.04), depth * 3.7))
+      * (24.0 + depth * 17.0);
+    vec2 cell = floor(grid);
+    vec3 seed = hash33(vec3(cell, depth + 12.0)) * 0.5 + 0.5;
+    vec2 delta = fract(grid) - (0.15 + seed.xy * 0.7);
+    float star = exp(-dot(delta, delta) * (650.0 + depth * 180.0));
+    float twinkle = 0.7 + 0.3 * sin(uTime * 0.7 + seed.z * 40.0);
+    color += mix(vec3(0.55, 0.7, 1.0), vec3(1.0, 0.88, 0.72), seed.x)
+      * star * step(0.83, seed.z) * twinkle * (1.0 - depth * 0.2);
+  }
+  return color;
 }
 
 vec4 draw(vec2 uv) {
@@ -122,7 +154,12 @@ vec4 draw(vec2 uv) {
   lightCol = clamp(mix(lightCol, vec3(1.0), clamp(v1 * 0.35, 0.0, 0.6)), 0.0, 1.0);
 
   vec3 finalCol = mix(darkCol, lightCol, bgLuminance);
+  float interior = uGalaxy * (1.0 - smoothstep(r0 - 0.08, r0, len));
+  if (interior > 0.0) {
+    finalCol += galaxy(uv) * interior;
+  }
   float alpha = max(max(finalCol.r, finalCol.g), finalCol.b);
+  alpha = max(alpha, interior);
   return vec4(finalCol / (alpha + 1e-5), alpha);
 }
 
@@ -198,6 +235,7 @@ const link = (gl: WebGL2RenderingContext) => {
 };
 
 export interface OrbProps {
+  galaxyBackground?: boolean;
   colors?: string[];
   hue?: number;
   backgroundColor?: string;
@@ -224,6 +262,7 @@ export interface OrbProps {
 }
 
 const Orb = ({
+  galaxyBackground = false,
   colors = ['#9c43fe', '#4cc2e9', '#101499'],
   hue = 0,
   backgroundColor = '#000000',
@@ -252,6 +291,7 @@ const Orb = ({
   const wakeRef = useRef<(() => void) | null>(null);
   const palette = Array.isArray(colors) ? colors : [];
   const settings = {
+    galaxyBackground,
     colors: [palette[0] ?? '#9c43fe', palette[1] ?? palette[0] ?? '#4cc2e9', palette[2] ?? '#101499'].map(String),
     hue,
     backgroundColor: String(backgroundColor),
@@ -406,6 +446,7 @@ const Orb = ({
       gl.bindVertexArray(vao);
       gl.uniform2f(u.uResolution, canvas.width, canvas.height);
       gl.uniform1f(u.uTime, state.time);
+      gl.uniform1f(u.uGalaxy, s.galaxyBackground ? 1 : 0);
       gl.uniform2f(u.uReach, state.reachX, state.reachY);
       gl.uniform1f(u.uNear, state.near);
       gl.uniform1f(u.uAwake, state.hover * s.hoverIntensity * 0.18);

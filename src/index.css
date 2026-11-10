@@ -803,20 +803,15 @@ input[type="text"], input[type="number"], input[type="url"], textarea, select {
   }
 }
 
-/* Studio picker: each studio "boots up" on the orb's centre display. */
+/* Studio picker: each studio fades into the orb's centre display. */
 @keyframes studio-display-in {
   0% {
     opacity: 0;
-    filter: blur(6px);
-    transform: translateY(10px) scale(0.96);
-  }
-  60% {
-    opacity: 1;
+    filter: blur(5px);
   }
   100% {
     opacity: 1;
     filter: blur(0);
-    transform: none;
   }
 }
 
@@ -831,6 +826,6 @@ input[type="text"], input[type="number"], input[type="url"], textarea, select {
 
 @media (prefers-reduced-motion: no-preference) {
   .studio-display-in {
-    animation: studio-display-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: studio-display-in 360ms ease-out both;
   }
 }

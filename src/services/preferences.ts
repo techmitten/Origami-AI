@@ -2,7 +2,6 @@ import { auth, db } from '../config/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 export const SYNCED_KEYS = [
-  'has_seen_welcome_lander',
   'hide_setup_modal',
   'slide_editor_view_mode',
   'configureSlidesExpanded',

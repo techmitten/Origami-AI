@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { ReactNode } from 'react';
-import { AudioLines, BookOpen, Bot, Clapperboard, FileCog, Film, LibraryBig, Settings, User } from 'lucide-react';
+import { AudioLines, Bot, Clapperboard, FileCog, Film, LibraryBig, Settings, User } from 'lucide-react';
 import { TransitionNavLink } from './TransitionLink';
 import { useAuth } from '../context/AuthContext';
 import { useBackgroundDownload } from '../context/BackgroundDownloadContext';
@@ -68,7 +68,7 @@ export const HeaderActionsMenu: React.FC<HeaderActionsMenuProps> = ({
             <>
               <div className={menuSectionLabelClassName}>Navigate</div>
               <TransitionNavLink
-                to="/"
+                to="/studios"
                 end
                 onClick={(e) => guardNavClick(e, 'Studio')}
                 className={({ isActive }) => `${menuItemClassName} ${isActive ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5 hover:text-white'}`}
@@ -106,14 +106,6 @@ export const HeaderActionsMenu: React.FC<HeaderActionsMenuProps> = ({
                 className={({ isActive }) => `${menuItemClassName} ${isActive ? 'bg-cyan-400/15 text-cyan-100' : 'text-white/70 hover:bg-white/5 hover:text-white'}`}
               >
                 <FileCog className="h-4 w-4" /> File Studio
-              </TransitionNavLink>
-
-              <TransitionNavLink
-                to="/studios"
-                onClick={(e) => guardNavClick(e, 'Landing Page')}
-                className={({ isActive }) => `${menuItemClassName} ${isActive ? 'bg-cyan-400/15 text-cyan-100' : 'text-white/70 hover:bg-white/5 hover:text-white'}`}
-              >
-                <BookOpen className="h-4 w-4" /> Landing Page
               </TransitionNavLink>
 
               {user && (

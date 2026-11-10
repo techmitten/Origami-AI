@@ -69,14 +69,14 @@ Heavy AI work runs in Web Workers, not the main thread:
 
 ### Two video pipelines
 
-1. **PDF → narrated video** (main flow): `PDFUploader` → `pdfService.ts` (extraction, via `pdfjs-dist`) → `aiService.ts` (script generation) → `ttsService.ts` → `SlideEditor.tsx` / `ZoomTimelineEditor.tsx` → `BrowserVideoRenderer.ts` (FFmpeg.wasm render).
+1. **PDF → narrated video** (main flow): Actions-menu "Upload PDF…" (in `App.tsx`) → `pdfService.ts` (extraction, via `pdfjs-dist`) → `aiService.ts` (script generation) → `ttsService.ts` → `SlideEditor.tsx` / `ZoomTimelineEditor.tsx` → `BrowserVideoRenderer.ts` (FFmpeg.wasm render).
 2. **Shorts** (`src/pages/ShortsPage.tsx`, `src/components/shorts/ShortsComposer.tsx`): script generation (`shortsScriptService.ts`) → Pollinations image/video generation (`pollinationsService.ts`, `pollinationsVideoService.ts`) → captions (`shortsCaptions.ts`) → `ShortsVideoRenderer.ts`. Project state shape lives in `shortsProject.ts`.
 
 Both pipelines converge on the same TTS and FFmpeg-based rendering services rather than duplicating them.
 
 ### Routing
 
-Client routing is `react-router`'s `BrowserRouter` defined at the bottom of `src/App.tsx`. `MainApp` (the root component, also in `App.tsx`) handles the primary PDF→video flow at `/`; other flows (`/assistant`, `/issue-reporter`, `/shorts`, `/pollinations-callback`, `/privacy`, `/terms`) are separate page components under `src/pages/`. `App.tsx` is large (~1700 lines) and owns most of the primary-flow state — prefer extracting new primary-flow features into `src/components/` rather than growing it further.
+Client routing is `react-router`'s `BrowserRouter` defined at the bottom of `src/App.tsx`. `MainApp` (the root component, also in `App.tsx`) handles the primary PDF→video flow at `/` — with no project open, `/` redirects to the `/studios` picker (the app's landing page; its Slide Studio card opens the editor via `/?editor=1`). Other flows (`/assistant`, `/issue-reporter`, `/shorts`, `/pollinations-callback`, `/privacy`, `/terms`) are separate page components under `src/pages/`. `App.tsx` is large (~1700 lines) and owns most of the primary-flow state — prefer extracting new primary-flow features into `src/components/` rather than growing it further.
 
 ### Screen recording
 

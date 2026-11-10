@@ -1,13 +1,15 @@
 import { setSyncedPreference } from './services/preferences';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { BrowserRouter, Routes, Route, useNavigate } from 'react-router';
 
-import { PDFUploader } from './components/PDFUploader';
+import { AISlideGeneratorModal } from './components/AISlideGeneratorModal';
 import { SlideEditor } from './components/SlideEditor';
 import type { SlideData, MusicSettings } from './types/slides';
 import { SimplePreview } from './components/SimplePreview';
 import { generateTTS, getAudioDuration, ttsEvents, initTTS } from './services/ttsService';
-import { renderPdfFirstPageToImage, type RenderedPage } from './services/pdfService';
+import { renderPdfFirstPageToImage, renderPdfToImages, type RenderedPage } from './services/pdfService';
+import { ocrEvents, type OCRProgressEventDetail } from './services/ocrService';
 import { GlobalSettingsModal } from './components/GlobalSettingsModal';
 import { TutorialModal } from './components/TutorialModal';
 import { Footer } from './components/Footer';
@@ -16,7 +18,7 @@ import { TermsOfService } from './pages/TermsOfService';
 import { LicensePage } from './pages/LicensePage';
 
 import { saveState, loadState, clearState, loadGlobalSettings, saveGlobalSettings, type GlobalSettings } from './services/storage';
-import { Download, Loader2, RotateCcw, VolumeX, XCircle, Trash2, LayoutGrid, List, Upload, Check, Play } from 'lucide-react';
+import { Download, Loader2, RotateCcw, VolumeX, XCircle, Trash2, LayoutGrid, List, Upload, Check, Play, FileUp, Sparkles } from 'lucide-react';
 import backgroundImage from './assets/images/background.png';
 import { useModal } from './context/ModalContext';
 import { BrowserVideoRenderer, videoEvents } from './services/BrowserVideoRenderer';
@@ -42,7 +44,6 @@ import { useScreenRecorder, type ScreenRecordResult } from './hooks/useScreenRec
 import { usePageMeta } from './hooks/usePageMeta';
 import { PageHeader } from './components/PageHeader';
 import { menuSectionLabelClassName } from './components/HeaderActionsMenu';
-import { useTransitionNavigate } from './components/TransitionLink';
 import { RouteTransition } from './components/RouteTransition';
 import chromeExtensionZip from './assets/extension/chrome-extension.zip?url';
 
@@ -65,24 +66,10 @@ function MainApp() {
     path: '/',
   });
 
-  const navigate = useTransitionNavigate();
-  // Plain (non-transitioned) navigate for the "Let's get started" app cards —
-  // those use their own loading-spinner splash instead of the cross-fade
-  // transition, so they must bypass startPageTransition.
+  // Plain (non-transitioned) navigate: the studio-picker redirect below swaps
+  // the URL directly, without waiting for the cross-fade page transition.
   const navigatePlain = useNavigate();
   const [slides, setSlides] = useState<SlideData[]>([]);
-  // The studio picker page ("/studios") is now the "Let's get started" page.
-  // First-run visitors to "/" are redirected there instead of seeing the old
-  // in-page welcome lander; the picker marks the preference seen on mount, so
-  // returning users come straight into the editor.
-  const [isFirstRun] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem('has_seen_welcome_lander') !== 'true';
-  });
-  useEffect(() => {
-    if (!isFirstRun) return;
-    navigatePlain('/studios', { replace: true });
-  }, [isFirstRun, navigatePlain]);
   const [generatingSlides, setGeneratingSlides] = useState<Set<number>>(new Set());
   const [analyzingSlides, setAnalyzingSlides] = useState<Set<number>>(new Set());
   const [analysisProgressBySlide, setAnalysisProgressBySlide] = useState<Record<number, { status: string; progress: number }>>({});
@@ -116,6 +103,11 @@ function MainApp() {
   const [renderAbortController, setRenderAbortController] = useState<AbortController | null>(null);
   const [renderProgress, setRenderProgress] = useState<number>(0);
   const importFileInputRef = useRef<HTMLInputElement | null>(null);
+  const pdfFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isUploadingPdf, setIsUploadingPdf] = useState(false);
+  const [isCreateSlidesModalOpen, setIsCreateSlidesModalOpen] = useState(false);
+  // OCR progress for menu-triggered PDF uploads (per-page events from ocrService).
+  const [pdfOcrProgress, setPdfOcrProgress] = useState<{ status: string | null; progress: number; currentPage: number; totalPages: number }>({ status: null, progress: 0, currentPage: 0, totalPages: 0 });
   const skipNextAutoSaveRef = useRef(false);
 
   const { user } = useAuth();
@@ -131,6 +123,27 @@ function MainApp() {
   const isSavingToCloudRef = useRef(false);
   isSavingToCloudRef.current = isSavingToCloud;
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // The studio picker page ("/studios") is the app's landing page. With no
+  // project open, "/" has nothing to show, so redirect to the picker. Wait for
+  // the saved-session restore and any ?libraryProjectId= load to settle first
+  // — either may still drop slides into the editor.
+  const wantsEmptyEditor = searchParams.get('editor') === '1';
+  const libraryProjectId = searchParams.get('libraryProjectId');
+  useEffect(() => {
+    if (isRestoring || wantsEmptyEditor || libraryProjectId) return;
+    if (slides.length > 0 || enteredEditorWithoutPdf) return;
+    navigatePlain('/studios', { replace: true });
+  }, [isRestoring, wantsEmptyEditor, libraryProjectId, slides.length, enteredEditorWithoutPdf, navigatePlain]);
+
+  // The picker's Slide Studio card links here with ?editor=1 so it opens the
+  // editor directly instead of bouncing straight back to the picker.
+  useEffect(() => {
+    if (!wantsEmptyEditor) return;
+    setEnteredEditorWithoutPdf(true);
+    setActiveTab('edit');
+    setSearchParams({}, { replace: true });
+  }, [wantsEmptyEditor, setSearchParams]);
 
   const handleSaveToLibrary = async () => {
     if (!user) {
@@ -165,7 +178,6 @@ function MainApp() {
 
   // Handles /?libraryProjectId=<id>[&libraryAction=download] navigated to from the Library page.
   useEffect(() => {
-    const libraryProjectId = searchParams.get('libraryProjectId');
     if (!libraryProjectId || isRestoring) return;
     if (!user) {
       setSearchParams({}, { replace: true });
@@ -585,6 +597,36 @@ function MainApp() {
     };
   }, [showAlert]);
 
+  // Mirror the OCR service's per-page progress events into state so the PDF
+  // upload overlay can show a monotonic overall percentage (each page sweeps
+  // 0 → 100% on its own, which would otherwise make the bar jump backwards).
+  useEffect(() => {
+    const handlePageStart = (e: Event) => {
+      const detail = (e as CustomEvent<OCRProgressEventDetail>).detail;
+      setPdfOcrProgress({ status: 'processing', progress: detail.progress, currentPage: detail.currentPage, totalPages: detail.totalPages });
+    };
+
+    const handlePageProgress = (e: Event) => {
+      const detail = (e as CustomEvent<OCRProgressEventDetail>).detail;
+      setPdfOcrProgress(prev => (prev.totalPages > 0 ? { ...prev, progress: detail.progress } : prev));
+    };
+
+    const handleError = (e: Event) => {
+      const detail = (e as CustomEvent<{ error: string }>).detail;
+      console.error('[App] OCR error:', detail.error);
+      showAlert(`OCR failed: ${detail.error}. Some slides may be missing narration text.`, { type: 'warning', title: 'OCR Failed' });
+    };
+
+    ocrEvents.addEventListener('page-start', handlePageStart);
+    ocrEvents.addEventListener('page-progress', handlePageProgress);
+    ocrEvents.addEventListener('error', handleError);
+    return () => {
+      ocrEvents.removeEventListener('page-start', handlePageStart);
+      ocrEvents.removeEventListener('page-progress', handlePageProgress);
+      ocrEvents.removeEventListener('error', handleError);
+    };
+  }, [showAlert]);
+
   // Load state on mount
   React.useEffect(() => {
     const load = async () => {
@@ -595,15 +637,10 @@ function MainApp() {
       if (state && state.slides.length > 0) {
         skipNextAutoSaveRef.current = true;
         skipNextCloudAutoSaveRef.current = true;
+        // A restored project is a real deck — clear any ?editor=1 empty-editor
+        // entry so the editor treats it like a normal "/" visit.
+        setEnteredEditorWithoutPdf(false);
         setSlides(state.slides.map(enforceTtsEnabled));
-
-        // A restored session means this browser has produced a deck before —
-        // the welcome page uses this to reveal the Editor card in the Slide Studio group.
-        try {
-          localStorage.setItem('has_uploaded_pdf', 'true');
-        } catch {
-          // localStorage unavailable (e.g. private browsing) — the card just stays hidden.
-        }
 
         try {
           const raw = localStorage.getItem(PDF_LIBRARY_LINK_KEY);
@@ -626,13 +663,14 @@ function MainApp() {
   }, [renderer, enforceTtsEnabled]);
 
   // Kick off resource loading (cached TTS/FFmpeg init, and the AI mode choice
-  // modal if it hasn't been answered yet) on mount. First-run users are
-  // redirected straight to the studio picker ("/studios"), so skip the work
-  // there — it runs when they return to "/" after picking a studio, mirroring
-  // the old flow where it fired right after the welcome lander's "Get Started".
+  // modal if it hasn't been answered yet) on mount. Visitors without a project
+  // are redirected straight to the studio picker ("/studios"), so skip the
+  // work there — it runs once a project is actually open in the editor (a
+  // restored session, a picker "Open Slide Studio" entry, or an upload).
   const resourceInitStartedRef = useRef(false);
   useEffect(() => {
-    if (isFirstRun || isRestoring || resourceInitStartedRef.current) return;
+    if (isRestoring || resourceInitStartedRef.current) return;
+    if (!(slides.length > 0 || enteredEditorWithoutPdf)) return;
     resourceInitStartedRef.current = true;
 
     // Check resource cache status
@@ -652,7 +690,7 @@ function MainApp() {
     if (!hideSetupModal) {
       setIsAiModeChoiceModalOpen(true);
     }
-  }, [isFirstRun, isRestoring, renderer, globalSettings]);
+  }, [isRestoring, slides.length, enteredEditorWithoutPdf, renderer, globalSettings]);
 
   const handleSetupConfirm = async (_dontShowAgain?: boolean) => {
     // Clicking Continue starts the background downloads. Persist the acknowledgment
@@ -824,6 +862,8 @@ function MainApp() {
     if (await showConfirm("Are you sure you want to start over? This will delete all current slides and progress.", { type: 'warning', title: 'Start Over', confirmText: 'Yes, Start Over' })) {
       await clearState();
       setSlides([]);
+      // With no slides left, "/" has nothing to show — drop back to the picker.
+      setEnteredEditorWithoutPdf(false);
       setActiveTab('edit');
       setMusicSettings({ volume: 0.16 }); // Reset music settings on start over
       setLinkedCloudProjectId(null);
@@ -869,6 +909,56 @@ function MainApp() {
 
   const handleImportProjectClick = () => {
     importFileInputRef.current?.click();
+  };
+
+  // Menu-triggered PDF upload: it replaces the current project, so confirm
+  // first when slides already exist (mirrors the project-import flow).
+  const handleUploadPdfClick = async () => {
+    if (isRenderingWithAudio || isRenderingSilent) {
+      showAlert('Wait for video rendering to complete before uploading a PDF.', { type: 'warning', title: 'Upload Blocked' });
+      return;
+    }
+    if (slides.length > 0) {
+      const proceed = await showConfirm(
+        'Uploading a PDF replaces your current slides and music settings. Continue?',
+        { type: 'warning', title: 'Upload PDF', confirmText: 'Upload and Replace' }
+      );
+      if (!proceed) return;
+    }
+    pdfFileInputRef.current?.click();
+  };
+
+  const handleUploadPdf = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) return;
+
+    setIsUploadingPdf(true);
+    setPdfOcrProgress({ status: null, progress: 0, currentPage: 0, totalPages: 0 });
+
+    try {
+      const pages = await renderPdfToImages(file);
+      await onUploadComplete(pages);
+    } catch (error) {
+      console.error(error);
+      showAlert(error instanceof Error ? error.message : 'Failed to process PDF. Please try again.', { type: 'error', title: 'Upload Failed' });
+    } finally {
+      setIsUploadingPdf(false);
+      setPdfOcrProgress({ status: null, progress: 0, currentPage: 0, totalPages: 0 });
+    }
+  };
+
+  // AI slide generation also replaces the current project, so confirm too.
+  const handleCreateSlidesClick = async () => {
+    if (slides.length > 0) {
+      const proceed = await showConfirm(
+        'Generating slides with AI replaces your current slides and music settings. Continue?',
+        { type: 'warning', title: 'Create Slides', confirmText: 'Create and Replace' }
+      );
+      if (!proceed) return;
+    }
+    setIsCreateSlidesModalOpen(true);
   };
 
   const handleImportProject = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -945,14 +1035,6 @@ function MainApp() {
     setLinkedCloudProjectId(null);
     setCurrentProjectTitle(null);
 
-    // Remember the upload so the welcome page can reveal the Editor shortcut
-    // in the Slide Studio group on future visits.
-    try {
-      localStorage.setItem('has_uploaded_pdf', 'true');
-    } catch {
-      // localStorage unavailable (e.g. private browsing) — nothing to remember.
-    }
-
     // If global defaults are enabled, use them
     let voice = 'af_heart';
     let transition: SlideData['transition'] = 'fade';
@@ -1008,12 +1090,6 @@ function MainApp() {
     setEnteredEditorWithoutPdf(false);
     setLinkedCloudProjectId(null);
     setCurrentProjectTitle(null);
-
-    try {
-      localStorage.setItem('has_uploaded_pdf', 'true');
-    } catch {
-      // localStorage unavailable (e.g. private browsing) — nothing to remember.
-    }
 
     let voice = 'af_heart';
     let transition: SlideData['transition'] = 'fade';
@@ -1598,6 +1674,12 @@ function MainApp() {
 
   const shouldShowEditor = slides.length > 0 || enteredEditorWithoutPdf;
 
+  // Monotonic overall OCR progress across all PDF pages (each page sweeps
+  // 0 → 100% on its own), so the upload overlay's bar only moves forward.
+  const pdfOcrOverallProgress = pdfOcrProgress.totalPages > 0
+    ? Math.round((((pdfOcrProgress.currentPage - 1) + pdfOcrProgress.progress / 100) / pdfOcrProgress.totalPages) * 100)
+    : pdfOcrProgress.progress;
+
   return (
     <div className={`isolate min-h-screen bg-branding-dark text-white pt-4 sm:pt-8 pb-2 flex flex-col px-4 ${activeTab === 'preview' ? 'sm:px-4' : 'sm:px-8'}`}>
       <input
@@ -1606,6 +1688,13 @@ function MainApp() {
         accept=".origami,application/zip"
         className="hidden"
         onChange={handleImportProject}
+      />
+      <input
+        ref={pdfFileInputRef}
+        type="file"
+        accept="application/pdf"
+        className="hidden"
+        onChange={handleUploadPdf}
       />
 
       <PageHeader
@@ -1655,8 +1744,25 @@ function MainApp() {
         ) : undefined}
         actionMenuContent={(closeMenu) => (
           <>
+            <div className={menuSectionLabelClassName}>Slide Studio</div>
+            <button
+              onClick={() => { handleUploadPdfClick(); closeMenu(); }}
+              disabled={isUploadingPdf}
+              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-white/70 transition-colors hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isUploadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileUp className="w-4 h-4" />}
+              {isUploadingPdf ? 'Processing PDF…' : 'Upload PDF…'}
+            </button>
+            <button
+              onClick={() => { handleCreateSlidesClick(); closeMenu(); }}
+              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-white/70 transition-colors hover:bg-white/5 hover:text-white"
+            >
+              <Sparkles className="w-4 h-4" /> Create Slides with AI…
+            </button>
+
             {slides.length > 0 && (
               <>
+                <div className="my-1 h-px bg-white/10" />
                 <div className={menuSectionLabelClassName}>Project</div>
                 <button
                   onClick={() => { handleExportProject(); closeMenu(); }}
@@ -1735,27 +1841,11 @@ function MainApp() {
       <main className={`mx-auto fade-transition ${activeTab === 'preview' ? 'w-full max-w-6xl' : 'max-w-7xl'}`} key={activeTab}>
         {!shouldShowEditor ? (
           <div className="min-h-[60vh] flex flex-col items-center justify-center w-full">
-            <PDFUploader
-              onUploadComplete={onUploadComplete}
-              onImportProject={handleImportProjectClick}
-              onStartScreenRecord={handleStartScreenRecord}
-              onOpenAssistant={() => navigatePlain('/assistant')}
-              onOpenIssueReporter={() => navigate('/issue-reporter')}
-              onOpenShorts={() => navigatePlain('/shorts')}
-              onOpenVoiceStudio={() => navigatePlain('/voice')}
-              onOpenConverter={() => navigatePlain('/convert')}
-              onOpenSlideEditor={() => {
-                setActiveTab('edit');
-                setEnteredEditorWithoutPdf(true);
-              }}
-              isDownloadingResources={isBackgroundDownloadActive}
-              onBlockedByDownload={(actionLabel) => setAppDownloadBlockedAction(actionLabel)}
-              onGenerateSlides={onGenerateSlides}
-              globalSettings={globalSettings}
-              onOpenSettings={() => { setSettingsInitialTab('api'); setIsSettingsOpen(true); }}
-            />
+            {/* Briefly visible while the saved-session restore settles; the
+                redirect above then swaps to the studio picker if no project
+                was found. */}
             {isRestoring && (
-              <div className="mt-8 text-center text-white/40 animate-pulse">
+              <div className="text-center text-white/40 animate-pulse">
                 Checking for saved session...
               </div>
             )}
@@ -1937,6 +2027,18 @@ function MainApp() {
         />
       )}
 
+      {/* AI slide generator (opened from the Actions menu) */}
+      <AISlideGeneratorModal
+        isOpen={isCreateSlidesModalOpen}
+        onClose={() => setIsCreateSlidesModalOpen(false)}
+        onGenerated={(slides) => {
+          setIsCreateSlidesModalOpen(false);
+          onGenerateSlides(slides);
+        }}
+        globalSettings={globalSettings}
+        onOpenSettings={() => { setSettingsInitialTab('api'); setIsSettingsOpen(true); }}
+      />
+
       <TutorialModal
         isOpen={isTutorialOpen}
         onClose={() => setIsTutorialOpen(false)}
@@ -1967,6 +2069,33 @@ function MainApp() {
         alt=""
         className="fixed inset-0 -z-50 w-full h-lvh object-cover opacity-40 blur-[2px] brightness-75 scale-105"
       />
+
+      {/* PDF processing overlay (menu-triggered uploads) */}
+      {isUploadingPdf && createPortal(
+        <div className="fixed inset-0 z-200 w-screen h-screen bg-black flex flex-col items-center justify-center gap-5">
+          <div className="relative flex items-center justify-center">
+            <Loader2 className="w-16 h-16 text-cyan-300/40 animate-spin" />
+            <FileUp className="absolute w-6 h-6 text-cyan-200" />
+          </div>
+          <p className="text-xs font-mono uppercase tracking-[0.2em] text-white/90">
+            Processing PDF…
+          </p>
+          {pdfOcrProgress.totalPages > 0 && (
+            <div className="w-64 max-w-[80vw]">
+              <div className="h-1 bg-white/10 overflow-hidden mb-1.5">
+                <div
+                  className="h-full bg-linear-to-r from-cyan-400 via-blue-400 to-violet-400 transition-all duration-300"
+                  style={{ width: `${pdfOcrOverallProgress}%` }}
+                />
+              </div>
+              <p className="text-[11px] font-mono tracking-wide text-white/40 text-center">
+                PAGE {pdfOcrProgress.currentPage}/{pdfOcrProgress.totalPages} — {pdfOcrOverallProgress}%
+              </p>
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
 
       {/* Floating Recording Indicator/Stop Button */}
       {isRecording && (

@@ -122,7 +122,7 @@ export const PrivacyPolicy: React.FC = () => {
 
               <div>
                 <h3 className="text-base font-bold text-white mb-3">B. Analytics Data</h3>
-                <p className="mb-3">We use Umami, a privacy-focused analytics tool that we self-host on our own infrastructure at umami.techmitten.com (not a third-party analytics vendor's servers), to understand aggregate usage of the Service (such as page views and session activity, including session replay of on-page interactions). Umami does not track you across other websites. The Service is otherwise designed to minimize data collection.</p>
+                <p className="mb-3">The Service does not use analytics tools, session recording, or third-party trackers. It is designed to minimize data collection.</p>
               </div>
 
               <div>

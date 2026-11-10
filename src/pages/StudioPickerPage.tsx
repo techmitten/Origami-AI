@@ -16,7 +16,6 @@ import { Footer } from '../components/Footer';
 import { TransitionLink } from '../components/TransitionLink';
 import { usePageMeta } from '../hooks/usePageMeta';
 import { useAuth } from '../context/AuthContext';
-import { setSyncedPreference } from '../services/preferences';
 import Orb from '../components/Orb';
 import Aurora from '../components/Aurora';
 
@@ -34,7 +33,7 @@ interface StudioEntry {
 
 const STUDIOS: StudioEntry[] = [
   {
-    to: '/',
+    to: '/?editor=1',
     title: 'Slide Studio',
     description: 'Turn PDF decks into fully narrated, animated video presentations in minutes.',
     icon: Layers,
@@ -133,11 +132,7 @@ export const StudioPickerPage: React.FC = () => {
 
   const { user } = useAuth();
 
-  // This page is the app's "Let's get started" experience: visiting it counts
-  // as having been welcomed, so "/" stops redirecting first-run users here.
-  useEffect(() => {
-    setSyncedPreference('has_seen_welcome_lander', 'true');
-  }, []);
+  // The studios offered on this page.
 
   // The Library is account-bound, so only offer it when there is a session.
   const studios: StudioEntry[] = user
@@ -183,9 +178,10 @@ export const StudioPickerPage: React.FC = () => {
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#121215]/30 to-[#121215]" />
       </div>
 
+      {/* This page is the app's landing screen, so the header offers no back
+          button — the logo and menu links are the ways out. */}
       <PageHeader
         title="Pick a Studio"
-        showBack
         showHelp={false}
         showSettings={false}
       />
@@ -236,6 +232,7 @@ export const StudioPickerPage: React.FC = () => {
         >
           <div className="relative w-[min(92vw,560px)] aspect-square">
             <Orb
+              galaxyBackground
               colors={active.orb}
               hoverIntensity={1}
               trail={1}
@@ -244,20 +241,23 @@ export const StudioPickerPage: React.FC = () => {
               followCursor
             />
 
-            {/* Centre "digital display" -- the whole disc inside the ring is the
-                link; its contents are re-keyed per studio so they boot in fresh. */}
+            {/* Centre "digital display". Clicking the disc advances to the next
+                studio in place; the Open pill remains the navigation link. The
+                content is re-keyed per studio so each change fades in fresh. */}
             <div
               className="absolute inset-0 flex items-center justify-center pointer-events-none"
               aria-live={paused ? 'polite' : 'off'}
             >
-              <TransitionLink
-                to={active.to}
-                aria-label={`Open ${active.title}: ${active.description}`}
-                className="group pointer-events-auto w-[64%] aspect-square rounded-full flex items-center justify-center text-center cursor-pointer transition-colors duration-300 hover:bg-white/[0.03] focus-ring"
-              >
+              <div className="group relative pointer-events-auto w-[64%] aspect-square rounded-full flex items-center justify-center text-center transition-colors duration-300 hover:bg-white/[0.03]">
+                <button
+                  type="button"
+                  onClick={() => go(1)}
+                  aria-label={`Show next studio: ${studios[(safeIndex + 1) % studios.length].title}`}
+                  className="absolute inset-0 rounded-full cursor-pointer focus-ring"
+                />
                 <div
                   key={active.to}
-                  className="studio-display-in flex flex-col items-center w-[86%] max-w-[300px]"
+                  className="studio-display-in pointer-events-none relative z-10 flex flex-col items-center w-[86%] max-w-[300px]"
                 >
                   <span className="font-mono text-[10px] sm:text-xs tracking-[0.3em] text-white/45 mb-3 tabular-nums">
                     {String(safeIndex + 1).padStart(2, '0')} / {String(studios.length).padStart(2, '0')}
@@ -270,34 +270,39 @@ export const StudioPickerPage: React.FC = () => {
                   <h2 className="font-mono text-lg sm:text-2xl font-bold text-white tracking-tight mb-1.5">
                     <ScrambleText key={active.title} text={active.title} />
                   </h2>
-                  <p className="hidden sm:block text-sm text-white/60 leading-relaxed mb-4">
-                    {active.description}
-                  </p>
-                  <span
-                    className={`mt-2 sm:mt-0 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs sm:text-sm font-semibold bg-black/30 backdrop-blur-md transition-colors group-hover:bg-white/10 ${active.border} ${active.color}`}
+                  <TransitionLink
+                    to={active.to}
+                    aria-label={`Open ${active.title}: ${active.description}`}
+                    className={`pointer-events-auto mt-2 sm:mt-0 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs sm:text-sm font-semibold bg-black/30 backdrop-blur-md transition-colors hover:bg-white/10 ${active.border} ${active.color}`}
                   >
                     Open {active.title}
                     <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
-                  </span>
+                  </TransitionLink>
                 </div>
-              </TransitionLink>
+              </div>
             </div>
 
+            {/* Prev/next arrows are embedded in the orb's body: recessed
+                frosted dials sitting in the dark interior just inside the
+                glowing rim, tinted with the active studio's accent so they
+                feel wired into the palette. The interior band between the
+                rim and the centre display is narrow, so they are sized to
+                fit it without touching either. */}
             <button
               type="button"
               onClick={() => go(-1)}
               aria-label="Previous studio"
-              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 sm:-translate-x-10 w-10 h-10 rounded-full border border-white/10 bg-black/30 backdrop-blur-md flex items-center justify-center text-white/60 hover:text-white hover:border-white/30 transition-colors focus-ring"
+              className={`group/arrow absolute left-[12%] top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/40 backdrop-blur-sm border border-white/10 flex items-center justify-center transition-all duration-300 hover:bg-black/55 hover:border-white/25 hover:shadow-[inset_0_3px_14px_rgba(0,0,0,0.65),inset_0_-2px_6px_rgba(255,255,255,0.1)] active:scale-95 focus-ring shadow-[inset_0_2px_10px_rgba(0,0,0,0.6),inset_0_-2px_6px_rgba(255,255,255,0.08)] ${active.color}`}
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 drop-shadow-[0_0_6px_currentColor] transition-transform duration-300 group-hover/arrow:-translate-x-0.5" strokeWidth={3} />
             </button>
             <button
               type="button"
               onClick={() => go(1)}
               aria-label="Next studio"
-              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1 sm:translate-x-10 w-10 h-10 rounded-full border border-white/10 bg-black/30 backdrop-blur-md flex items-center justify-center text-white/60 hover:text-white hover:border-white/30 transition-colors focus-ring"
+              className={`group/arrow absolute right-[12%] top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/40 backdrop-blur-sm border border-white/10 flex items-center justify-center transition-all duration-300 hover:bg-black/55 hover:border-white/25 hover:shadow-[inset_0_3px_14px_rgba(0,0,0,0.65),inset_0_-2px_6px_rgba(255,255,255,0.1)] active:scale-95 focus-ring shadow-[inset_0_2px_10px_rgba(0,0,0,0.6),inset_0_-2px_6px_rgba(255,255,255,0.08)] ${active.color}`}
             >
-              <ChevronRight className="w-5 h-5" />
+              <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 drop-shadow-[0_0_6px_currentColor] transition-transform duration-300 group-hover/arrow:translate-x-0.5" strokeWidth={3} />
             </button>
           </div>
 

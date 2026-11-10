@@ -28,7 +28,7 @@ async function createServer() {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdn.jsdelivr.net", "https://unpkg.com", "https://umami.techmitten.com", "https://static.cloudflareinsights.com", "https://challenges.cloudflare.com", "https://apis.google.com", "https://www.gstatic.com", "https://*.googleapis.com", "https://*.firebaseio.com", "blob:"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdn.jsdelivr.net", "https://unpkg.com", "https://static.cloudflareinsights.com", "https://challenges.cloudflare.com", "https://apis.google.com", "https://www.gstatic.com", "https://*.googleapis.com", "https://*.firebaseio.com", "blob:"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "data:", "blob:", "https:"],
         imgSrc: ["'self'", "data:", "blob:", "https:", "https://*.googleusercontent.com"],
