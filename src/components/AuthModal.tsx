@@ -23,8 +23,8 @@ import {
   Check,
 } from 'lucide-react';
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
-import { TransitionLink } from './TransitionLink';
-import { useNavigate } from 'react-router';
+import { TransitionLink, useTransitionNavigate } from './TransitionLink';
+import { SignInSuccessModal } from './SignInSuccessModal';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -82,7 +82,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   initialMode = 'signin',
 }) => {
-  const navigate = useNavigate();
+  const navigate = useTransitionNavigate();
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -93,6 +93,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  // Post-sign-in celebration: the auth form closes and this dialog takes over,
+  // then continues on to the studio picker page.
+  const [showSignInSuccess, setShowSignInSuccess] = useState(false);
+  const [signedInEmail, setSignedInEmail] = useState<string | null>(null);
 
   // Animation lifecycle states matching app standards
   const [isRendered, setIsRendered] = useState(false);
@@ -142,8 +146,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return () => window.removeEventListener('keydown', handleKeyDown);
     }
   }, [isOpen, onClose]);
-
-  if (!isRendered) return null;
 
   const verifyTurnstile = async () => {
     if (!turnstileToken) {
@@ -200,7 +202,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         }
 
         onClose();
-        navigate('/account');
+        setSignedInEmail(credential.user.email);
+        setShowSignInSuccess(true);
       } else {
         const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
         await sendEmailVerification(credential.user);
@@ -232,14 +235,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   };
 
   return (
-    <div
-      className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-300 ${
-        isVisible ? 'opacity-100' : 'opacity-0'
-      }`}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="auth-modal-title"
-    >
+    <>
+      {/* Post-sign-in success dialog → studio picker. Rendered outside the auth
+          overlay so it survives the form's fade-out/unmount transition. */}
+      <SignInSuccessModal
+        isOpen={showSignInSuccess}
+        email={signedInEmail}
+        onContinue={() => {
+          setShowSignInSuccess(false);
+          navigate('/studios');
+        }}
+      />
+
+      {isRendered && (
+        <div
+          className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-300 ${
+            isVisible ? 'opacity-100' : 'opacity-0'
+          }`}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="auth-modal-title"
+        >
       {/* Dark Glass Backdrop */}
       <div
         className="absolute inset-0 bg-black/75 backdrop-blur-md transition-opacity duration-300"
@@ -556,7 +572,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </p>
         </div>
       </div>
-    </div>
+        </div>
+      )}
+    </>
   );
 };
 

@@ -2,7 +2,7 @@
   "mcpServers": {
     "firebase": {
       "command": "npx",
-      "args": ["-y", "firebase-tools@latest", "mcp", "--dir", "/workspaces/Origami-AI"]
+      "args": ["-y", "firebase-tools@latest", "mcp", "--dir", "."]
     }
   }
 }

@@ -1,9 +1,7 @@
-import { setSyncedPreference } from '../services/preferences';
 import React, { useState } from 'react';
 import type { ReactNode } from 'react';
 import { AudioLines, BookOpen, Bot, Clapperboard, FileCog, Film, LibraryBig, Settings, User } from 'lucide-react';
-import { useLocation } from 'react-router';
-import { TransitionNavLink, useTransitionNavigate } from './TransitionLink';
+import { TransitionNavLink } from './TransitionLink';
 import { useAuth } from '../context/AuthContext';
 import { useBackgroundDownload } from '../context/BackgroundDownloadContext';
 import { DownloadBlockedModal } from './DownloadBlockedModal';
@@ -26,8 +24,6 @@ export const HeaderActionsMenu: React.FC<HeaderActionsMenuProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [blockedAction, setBlockedAction] = useState<string | null>(null);
-  const navigate = useTransitionNavigate();
-  const location = useLocation();
   const { user } = useAuth();
   const { isBackgroundDownloadActive } = useBackgroundDownload();
 
@@ -41,22 +37,6 @@ export const HeaderActionsMenu: React.FC<HeaderActionsMenuProps> = ({
     if (isBackgroundDownloadActive) {
       event.preventDefault();
       setBlockedAction(actionLabel);
-    }
-  };
-
-  const showLandingPage = () => {
-    closeMenu();
-    if (isBackgroundDownloadActive) {
-      setBlockedAction('Landing Page');
-      return;
-    }
-    // The Studio reads this flag when it mounts, so the lander also shows when
-    // this is triggered from another route; the event covers the case where the
-    // Studio is already on screen.
-    setSyncedPreference('has_seen_welcome_lander', 'false');
-    window.dispatchEvent(new Event('show-welcome-lander'));
-    if (location.pathname !== '/') {
-      navigate('/');
     }
   };
 
@@ -128,12 +108,13 @@ export const HeaderActionsMenu: React.FC<HeaderActionsMenuProps> = ({
                 <FileCog className="h-4 w-4" /> File Studio
               </TransitionNavLink>
 
-              <button
-                onClick={showLandingPage}
-                className={`${menuItemClassName} text-white/70 hover:bg-white/5 hover:text-white`}
+              <TransitionNavLink
+                to="/studios"
+                onClick={(e) => guardNavClick(e, 'Landing Page')}
+                className={({ isActive }) => `${menuItemClassName} ${isActive ? 'bg-cyan-400/15 text-cyan-100' : 'text-white/70 hover:bg-white/5 hover:text-white'}`}
               >
                 <BookOpen className="h-4 w-4" /> Landing Page
-              </button>
+              </TransitionNavLink>
 
               {user && (
                 <>

@@ -802,3 +802,35 @@ input[type="text"], input[type="number"], input[type="url"], textarea, select {
     animation: download-toast-attention 900ms ease-in-out 2;
   }
 }
+
+/* Studio picker: each studio "boots up" on the orb's centre display. */
+@keyframes studio-display-in {
+  0% {
+    opacity: 0;
+    filter: blur(6px);
+    transform: translateY(10px) scale(0.96);
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+    transform: none;
+  }
+}
+
+@keyframes studio-display-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .studio-display-in {
+    animation: studio-display-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}

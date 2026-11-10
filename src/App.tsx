@@ -3,7 +3,6 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate } from 'react-router';
 
 import { PDFUploader } from './components/PDFUploader';
-import { WelcomeLander } from './components/WelcomeLander';
 import { SlideEditor } from './components/SlideEditor';
 import type { SlideData, MusicSettings } from './types/slides';
 import { SimplePreview } from './components/SimplePreview';
@@ -38,6 +37,7 @@ import { VoiceStudioPage } from './pages/VoiceStudioPage';
 import { ConvertStudioPage } from './pages/ConvertStudioPage';
 import { PollinationsCallbackPage } from './pages/PollinationsCallbackPage';
 import { AccountOverviewPage } from './pages/AccountOverviewPage';
+import { StudioPickerPage } from './pages/StudioPickerPage';
 import { useScreenRecorder, type ScreenRecordResult } from './hooks/useScreenRecorder';
 import { usePageMeta } from './hooks/usePageMeta';
 import { PageHeader } from './components/PageHeader';
@@ -71,10 +71,18 @@ function MainApp() {
   // transition, so they must bypass startPageTransition.
   const navigatePlain = useNavigate();
   const [slides, setSlides] = useState<SlideData[]>([]);
-  const [showWelcomeLander, setShowWelcomeLander] = useState(() => {
-    if (typeof window === 'undefined') return true;
+  // The studio picker page ("/studios") is now the "Let's get started" page.
+  // First-run visitors to "/" are redirected there instead of seeing the old
+  // in-page welcome lander; the picker marks the preference seen on mount, so
+  // returning users come straight into the editor.
+  const [isFirstRun] = useState(() => {
+    if (typeof window === 'undefined') return false;
     return localStorage.getItem('has_seen_welcome_lander') !== 'true';
   });
+  useEffect(() => {
+    if (!isFirstRun) return;
+    navigatePlain('/studios', { replace: true });
+  }, [isFirstRun, navigatePlain]);
   const [generatingSlides, setGeneratingSlides] = useState<Set<number>>(new Set());
   const [analyzingSlides, setAnalyzingSlides] = useState<Set<number>>(new Set());
   const [analysisProgressBySlide, setAnalysisProgressBySlide] = useState<Record<number, { status: string; progress: number }>>({});
@@ -189,7 +197,6 @@ function MainApp() {
         setLinkedCloudProjectId(libraryProjectId);
         setCurrentProjectTitle(data.title);
         setActiveTab('edit');
-        setShowWelcomeLander(false);
         if (action === 'download') pendingLibraryDownloadRef.current = true;
       } catch (e: any) {
         console.error(e);
@@ -578,17 +585,6 @@ function MainApp() {
     };
   }, [showAlert]);
 
-  // Listen for show-welcome-lander event from the Actions dropdown
-  useEffect(() => {
-    const handleShowWelcome = () => {
-      setShowWelcomeLander(true);
-    };
-    window.addEventListener('show-welcome-lander', handleShowWelcome);
-    return () => {
-      window.removeEventListener('show-welcome-lander', handleShowWelcome);
-    };
-  }, []);
-
   // Load state on mount
   React.useEffect(() => {
     const load = async () => {
@@ -630,15 +626,13 @@ function MainApp() {
   }, [renderer, enforceTtsEnabled]);
 
   // Kick off resource loading (cached TTS/FFmpeg init, and the AI mode choice
-  // modal if it hasn't been answered yet) only once the user is past the
-  // welcome lander — either by clicking "Get Started" just now, or by having
-  // already dismissed it in a prior session (e.g. a direct reload, or a
-  // bookmarked link straight into the editor). This keeps the lander itself
-  // free of any background downloading/initialization work, while still
-  // covering entrances that skip it entirely.
+  // modal if it hasn't been answered yet) on mount. First-run users are
+  // redirected straight to the studio picker ("/studios"), so skip the work
+  // there — it runs when they return to "/" after picking a studio, mirroring
+  // the old flow where it fired right after the welcome lander's "Get Started".
   const resourceInitStartedRef = useRef(false);
   useEffect(() => {
-    if (showWelcomeLander || isRestoring || resourceInitStartedRef.current) return;
+    if (isFirstRun || isRestoring || resourceInitStartedRef.current) return;
     resourceInitStartedRef.current = true;
 
     // Check resource cache status
@@ -658,7 +652,7 @@ function MainApp() {
     if (!hideSetupModal) {
       setIsAiModeChoiceModalOpen(true);
     }
-  }, [showWelcomeLander, isRestoring, renderer, globalSettings]);
+  }, [isFirstRun, isRestoring, renderer, globalSettings]);
 
   const handleSetupConfirm = async (_dontShowAgain?: boolean) => {
     // Clicking Continue starts the background downloads. Persist the acknowledgment
@@ -1618,7 +1612,7 @@ function MainApp() {
         title="Origami"
         onHelp={() => setIsTutorialOpen(true)}
         onSettings={() => { setSettingsInitialTab('general'); setIsSettingsOpen(true); }}
-        centerContent={slides.length > 0 && !showWelcomeLander ? (
+        centerContent={slides.length > 0 ? (
           <div className="flex items-center p-1 rounded-xl bg-white/5 border border-white/10 backdrop-blur-md">
             <button
               onClick={() => setActiveTab('edit')}
@@ -1739,17 +1733,7 @@ function MainApp() {
       />
 
       <main className={`mx-auto fade-transition ${activeTab === 'preview' ? 'w-full max-w-6xl' : 'max-w-7xl'}`} key={activeTab}>
-        {showWelcomeLander ? (
-          <div className="min-h-[60vh] flex flex-col items-center justify-center w-full">
-            <WelcomeLander onContinue={() => {
-              setShowWelcomeLander(false);
-              setSyncedPreference('has_seen_welcome_lander', 'true');
-              window.scrollTo({ top: 0, behavior: 'instant' });
-              // The resource-init effect below (gated on showWelcomeLander) picks up
-              // from here and opens the AI mode choice modal if it hasn't been answered.
-            }} />
-          </div>
-        ) : !shouldShowEditor ? (
+        {!shouldShowEditor ? (
           <div className="min-h-[60vh] flex flex-col items-center justify-center w-full">
             <PDFUploader
               onUploadComplete={onUploadComplete}
@@ -2016,6 +2000,7 @@ function App() {
             <Routes>
               <Route path="/" element={<MainApp />} />
               <Route path="/account" element={<AccountOverviewPage />} />
+              <Route path="/studios" element={<StudioPickerPage />} />
               <Route path="/library" element={<LibraryPage />} />
               <Route path="/assistant" element={<AssistantPage />} />
               <Route path="/issue-reporter" element={<IssueReporterPage />} />
