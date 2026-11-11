@@ -16,6 +16,7 @@ import { TransitionLink } from '../components/TransitionLink';
 import { usePageMeta } from '../hooks/usePageMeta';
 import { useAuth } from '../context/AuthContext';
 import CrystalizedBall from '../components/CrystalizedBall';
+import ParticleText from '../components/ParticleText';
 
 interface StudioEntry {
   to: string;
@@ -176,11 +177,37 @@ export const StudioPickerPage: React.FC = () => {
       {/* Main Content */}
       <main className="mx-auto max-w-5xl w-full mb-8 flex-grow">
         <div className="text-center mt-5 sm:mt-8">
-          <p className="text-[10px] sm:text-xs font-mono uppercase tracking-[0.3em] text-white/45 mb-4">Your ideas, taking shape</p>
-          <h1 className="font-display text-3xl sm:text-5xl font-semibold text-white tracking-tight leading-tight">
-            What will you create?
+          <p className="text-[10px] sm:text-xs font-mono uppercase tracking-[0.3em] text-white/45">Your ideas, taking shape</p>
+          <h1
+            className="font-display text-white -my-4 sm:-my-5"
+            style={{ width: '100%', height: 'clamp(110px, 14vw, 150px)' }}
+          >
+            <ParticleText
+              text="What will you create?"
+              particleSize={2}
+              density={3}
+              color="currentColor"
+              highlightColor={active.crystalColor}
+              highlightMode="motion"
+              shape="circle"
+              intro="gather"
+              scatter={180}
+              gatherDuration={1600}
+              stagger={420}
+              clickBurst
+              burstStrength={1}
+              pointerRepel={40}
+              repelRadius={120}
+              idleDrift={0.7}
+              trigger="hover"
+              fontSize="clamp(2.25rem, 6vw, 4.25rem)"
+              fontWeight={800}
+              fontFamily="inherit"
+              glow
+              style={{ height: '100%', minHeight: 0 }}
+            />
           </h1>
-          <p className="mt-4 text-sm sm:text-base text-white/50">Pick your tools. Make something yours.</p>
+          <p className="text-sm sm:text-base text-white/50">Pick your tools. Make something yours.</p>
           {user?.email && (
             <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/60">
               <UserIcon className="w-3.5 h-3.5 text-cyan-400" />
