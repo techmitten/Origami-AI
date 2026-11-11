@@ -207,7 +207,7 @@ export const StudioPickerPage: React.FC = () => {
           }}
         >
           <div
-            className="studio-orb relative w-full max-w-[560px] aspect-square"
+            className="studio-orb relative w-full max-w-[560px] sm:max-w-[700px] lg:max-w-[760px] sm:-my-4 aspect-square"
             style={{ touchAction: 'pan-y pinch-zoom' }}
             onPointerDown={(event) => {
               if (!event.isPrimary || event.button !== 0) return;
@@ -293,12 +293,12 @@ export const StudioPickerPage: React.FC = () => {
                   to={active.to}
                   draggable={false}
                   aria-label={`Open ${active.title}: ${active.description}`}
-                  className="studio-display-in pointer-events-auto relative z-10 flex flex-col items-center justify-center w-full max-w-[300px] min-h-32 rounded-2xl focus-ring"
+                  className="studio-display-in pointer-events-auto relative z-10 flex flex-col items-center justify-center w-full max-w-[300px] sm:max-w-[360px] min-h-32 rounded-2xl focus-ring"
                 >
                   <div
                     className={`studio-orb-icon rounded-2xl flex items-center justify-center border transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-3 ${active.bg} ${active.border}`}
                   >
-                    <ActiveIcon className={`w-5 h-5 sm:w-7 sm:h-7 ${active.color}`} />
+                    <ActiveIcon className={`w-5 h-5 sm:w-8 sm:h-8 ${active.color}`} />
                   </div>
                   <h2 className="studio-orb-title font-mono font-bold text-white tracking-tight">
                     <ScrambleText key={active.title} text={active.title} />
@@ -310,7 +310,7 @@ export const StudioPickerPage: React.FC = () => {
 
           </div>
 
-          <p className="-mt-4 sm:-mt-8 min-h-[6rem] sm:min-h-[4rem] max-w-xl px-3 text-center text-lg sm:text-xl text-white/75 leading-relaxed" aria-live="polite" aria-atomic="true">
+          <p className="-mt-4 sm:-mt-10 min-h-[6rem] sm:min-h-[4rem] max-w-xl px-3 text-center text-lg sm:text-xl text-white/75 leading-relaxed" aria-live="polite" aria-atomic="true">
             {active.description}
           </p>
 
