@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
   Layers,
   Bot,
@@ -6,7 +6,6 @@ import {
   AudioLines,
   FileCog,
   LibraryBig,
-  ArrowRight,
   ChevronLeft,
   ChevronRight,
   User as UserIcon,
@@ -16,8 +15,7 @@ import { Footer } from '../components/Footer';
 import { TransitionLink } from '../components/TransitionLink';
 import { usePageMeta } from '../hooks/usePageMeta';
 import { useAuth } from '../context/AuthContext';
-import Orb from '../components/Orb';
-import Aurora from '../components/Aurora';
+import CrystalizedBall from '../components/CrystalizedBall';
 
 interface StudioEntry {
   to: string;
@@ -27,8 +25,8 @@ interface StudioEntry {
   color: string;
   bg: string;
   border: string;
-  /** Orb palette: two swirl colours, then the deep glow colour. */
-  orb: string[];
+  /** Tint for the crystal ball when this studio is selected. */
+  crystalColor: string;
 }
 
 const STUDIOS: StudioEntry[] = [
@@ -40,7 +38,7 @@ const STUDIOS: StudioEntry[] = [
     color: 'text-cyan-300',
     bg: 'bg-cyan-500/10',
     border: 'border-cyan-400/30',
-    orb: ['#22d3ee', '#3b82f6', '#0c1e4a'],
+    crystalColor: '#67E8F9',
   },
   {
     to: '/shorts',
@@ -50,27 +48,27 @@ const STUDIOS: StudioEntry[] = [
     color: 'text-amber-300',
     bg: 'bg-amber-500/10',
     border: 'border-amber-400/30',
-    orb: ['#fbbf24', '#f97316', '#3b1a05'],
+    crystalColor: '#FFB85C',
   },
   {
     to: '/voice',
     title: 'Voice Studio',
     description: 'Type anything and hear it spoken by on-device voices, then download the MP3.',
     icon: AudioLines,
-    color: 'text-violet-300',
-    bg: 'bg-violet-500/10',
-    border: 'border-violet-400/30',
-    orb: ['#a78bfa', '#c026d3', '#1e0b4a'],
+    color: 'text-sky-300',
+    bg: 'bg-sky-500/10',
+    border: 'border-sky-400/30',
+    crystalColor: '#8CCBFF',
   },
   {
     to: '/convert',
     title: 'File Studio',
     description: 'Convert and compress images and audio right in your browser — no uploads.',
     icon: FileCog,
-    color: 'text-fuchsia-300',
-    bg: 'bg-fuchsia-500/10',
-    border: 'border-fuchsia-400/30',
-    orb: ['#e879f9', '#f472b6', '#3b0a35'],
+    color: 'text-orange-300',
+    bg: 'bg-orange-500/10',
+    border: 'border-orange-400/30',
+    crystalColor: '#FF8F7A',
   },
   {
     to: '/assistant',
@@ -80,12 +78,10 @@ const STUDIOS: StudioEntry[] = [
     color: 'text-emerald-300',
     bg: 'bg-emerald-500/10',
     border: 'border-emerald-400/30',
-    orb: ['#34d399', '#22d3ee', '#052e22'],
+    crystalColor: '#5CFFC8',
   },
 ];
 
-/** How long each studio stays on the orb's display before rotating. */
-const ROTATE_MS = 4500;
 const GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&/<>';
 
 /** Resolves a string out of random glyphs, left to right, like a digital readout. */
@@ -143,25 +139,17 @@ export const StudioPickerPage: React.FC = () => {
           title: 'Library',
           description: 'Reopen your saved cloud projects on any device, anytime.',
           icon: LibraryBig,
-          color: 'text-sky-300',
-          bg: 'bg-sky-500/10',
-          border: 'border-sky-400/30',
-          orb: ['#38bdf8', '#818cf8', '#0b1f3a'],
+          color: 'text-yellow-100',
+          bg: 'bg-yellow-500/10',
+          border: 'border-yellow-200/30',
+          crystalColor: '#FFF0B3',
         },
       ]
     : STUDIOS;
 
   const [index, setIndex] = useState(0);
-  const [hovered, setHovered] = useState(false);
-  const [focused, setFocused] = useState(false);
-  const [swiping, setSwiping] = useState(false);
   const swipeStart = useRef<{ id: number; x: number; y: number } | null>(null);
   const suppressSwipeClick = useRef(false);
-  const [reduceMotion] = useState(
-    () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
-  );
-  const paused = hovered || focused || swiping;
-
   // The list grows by one when signing in/out; keep the index in range.
   const safeIndex = index % studios.length;
   const active = studios[safeIndex];
@@ -172,26 +160,10 @@ export const StudioPickerPage: React.FC = () => {
     [studios.length],
   );
 
-  // Keep auto-rotation independent of the navigation controls.
-  useEffect(() => {
-    if (paused || reduceMotion) return;
-    const timer = window.setTimeout(() => go(1), ROTATE_MS);
-    return () => window.clearTimeout(timer);
-  }, [go, index, paused, reduceMotion]);
-
   return (
-    <div className="isolate min-h-screen bg-[#121215] text-white pt-8 pb-2 flex flex-col px-4 sm:px-8">
-      {/* Muted aurora adds a soft wash of colour over the dark base. */}
-      <div className="fixed inset-0 -z-50 pointer-events-none overflow-hidden" aria-hidden="true">
-        <Aurora
-          className="opacity-30 blur-3xl"
-          colorStops={['#155e75', '#1e3a8a', '#4c1d95']}
-          amplitude={0.8}
-          blend={0.8}
-          speed={0.4}
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#121215]/20 via-[#121215]/60 to-[#121215]" />
-      </div>
+    <div className="studio-picker isolate min-h-screen text-white pt-6 pb-2 flex flex-col px-4 sm:px-8"
+      style={{ '--studio-accent': active.crystalColor } as CSSProperties}>
+      <div className="studio-picker-ambient fixed inset-0 -z-10 pointer-events-none" aria-hidden="true" />
 
       {/* This page is the app's landing screen, so the header offers no back
           button — the logo and menu links are the ways out. */}
@@ -202,11 +174,13 @@ export const StudioPickerPage: React.FC = () => {
       />
 
       {/* Main Content */}
-      <main className="mx-auto max-w-5xl w-full mb-8 animate-slide-up flex-grow">
-        <div className="text-center mb-4 sm:mb-6">
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white tracking-tight">
-            Choose a Studio
+      <main className="mx-auto max-w-5xl w-full mb-8 flex-grow">
+        <div className="text-center mt-5 sm:mt-8">
+          <p className="text-[10px] sm:text-xs font-mono uppercase tracking-[0.3em] text-white/45 mb-4">Your ideas, taking shape</p>
+          <h1 className="font-display text-3xl sm:text-5xl font-semibold text-white tracking-tight leading-tight">
+            What will you create?
           </h1>
+          <p className="mt-4 text-sm sm:text-base text-white/50">Pick your tools. Make something yours.</p>
           {user?.email && (
             <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/60">
               <UserIcon className="w-3.5 h-3.5 text-cyan-400" />
@@ -221,13 +195,7 @@ export const StudioPickerPage: React.FC = () => {
           role="region"
           aria-roledescription="carousel"
           aria-label="Studios"
-          className="relative flex flex-col items-center"
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
-          onFocus={() => setFocused(true)}
-          onBlur={(e) => {
-            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false);
-          }}
+          className="relative flex flex-col items-center mt-2 sm:mt-0"
           onKeyDown={(e) => {
             if (e.key === 'ArrowRight') {
               e.preventDefault();
@@ -245,7 +213,6 @@ export const StudioPickerPage: React.FC = () => {
               if (!event.isPrimary || event.button !== 0) return;
               suppressSwipeClick.current = false;
               swipeStart.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
-              setSwiping(true);
             }}
             onPointerMove={(event) => {
               const start = swipeStart.current;
@@ -268,16 +235,13 @@ export const StudioPickerPage: React.FC = () => {
                 go(dx < 0 ? 1 : -1);
               }
               swipeStart.current = null;
-              setSwiping(false);
             }}
             onPointerCancel={() => {
               swipeStart.current = null;
-              setSwiping(false);
             }}
             onPointerLeave={(event) => {
               if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
                 swipeStart.current = null;
-                setSwiping(false);
               }
             }}
             onLostPointerCapture={(event) => {
@@ -285,7 +249,6 @@ export const StudioPickerPage: React.FC = () => {
               // capture to the orb also bubbles that child's lost-capture event.
               if (event.target !== event.currentTarget) return;
               swipeStart.current = null;
-              setSwiping(false);
             }}
             onClickCapture={(event) => {
               if (suppressSwipeClick.current && event.detail > 0) {
@@ -294,35 +257,43 @@ export const StudioPickerPage: React.FC = () => {
               }
             }}
           >
-            <Orb
-              galaxyBackground
-              colors={active.orb}
-              hoverIntensity={0.2}
-              trail={1}
-              glow={0.7}
-              highlight={0.5}
-              opacity={0.75}
-              rotateOnHover={false}
-              followCursor={false}
+            <CrystalizedBall
+              preset="plasma"
+              color={active.crystalColor}
+              size={0.7}
+              crackle={0.85}
+              fill={0.5}
+              interactive
+              hoverStrength={0.7}
+              strands={6}
+              flares={0.65}
+              glow={0.9}
+              sparks={0.6}
+              particleCount={15000}
+              motion="rise"
+              particleShape="square"
+              depth={0.6}
+              sway={0.5}
+              twinkle={0.5}
+              haze={0.7}
+              dustSpeed={1}
+              speed={1}
+              intro
+              paused={false}
             />
 
-            {/* Centre "digital display". Clicking the disc advances to the next
-                studio in place; the Open pill remains the navigation link. The
-                content is re-keyed per studio so each change fades in fresh. */}
+            {/* Keep the primary link inside the glass; navigation lives below. */}
             <div
               className="absolute inset-0 flex items-center justify-center pointer-events-none"
-              aria-live={paused ? 'polite' : 'off'}
+              aria-live="polite" aria-atomic="true"
             >
-              <div className="group studio-orb-center relative pointer-events-auto w-1/2 aspect-square rounded-full flex items-center justify-center text-center transition-colors duration-300 hover:bg-white/[0.03]">
-                <button
-                  type="button"
-                  onClick={() => go(1)}
-                  aria-label={`Show next studio: ${studios[(safeIndex + 1) % studios.length].title}`}
-                  className="absolute inset-0 rounded-full cursor-pointer focus-ring"
-                />
-                <div
+              <div className="group studio-orb-center relative w-1/2 aspect-square rounded-full flex items-center justify-center text-center transition-colors duration-300 hover:bg-white/[0.03]">
+                <TransitionLink
                   key={active.to}
-                  className="studio-display-in pointer-events-none relative z-10 flex flex-col items-center w-full max-w-[300px]"
+                  to={active.to}
+                  draggable={false}
+                  aria-label={`Open ${active.title}: ${active.description}`}
+                  className="studio-display-in pointer-events-auto relative z-10 flex flex-col items-center justify-center w-full max-w-[300px] min-h-32 rounded-2xl focus-ring"
                 >
                   <div
                     className={`studio-orb-icon rounded-2xl flex items-center justify-center border transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-3 ${active.bg} ${active.border}`}
@@ -332,50 +303,61 @@ export const StudioPickerPage: React.FC = () => {
                   <h2 className="studio-orb-title font-mono font-bold text-white tracking-tight">
                     <ScrambleText key={active.title} text={active.title} />
                   </h2>
-                  <TransitionLink
-                    to={active.to}
-                    aria-label={`Open ${active.title}: ${active.description}`}
-                    className={`studio-orb-open pointer-events-auto inline-flex items-center justify-center gap-2 rounded-full border px-4 font-semibold bg-slate-950/85 backdrop-blur-md transition-colors hover:bg-slate-900 ${active.border} ${active.color}`}
-                  >
-                    Open Studio
-                    <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
-                  </TransitionLink>
-                </div>
+                </TransitionLink>
               </div>
             </div>
 
 
           </div>
 
-          {/* Mobile: description sits under the orb where there is room for it. */}
-          <p className="sm:hidden mt-2 min-h-[4.5rem] max-w-sm text-center text-sm text-white/60 leading-relaxed">
+          <p className="-mt-4 sm:-mt-8 min-h-[6rem] sm:min-h-[4rem] max-w-xl px-3 text-center text-lg sm:text-xl text-white/75 leading-relaxed" aria-live="polite" aria-atomic="true">
             {active.description}
           </p>
 
-          <div className="mt-3 flex items-center justify-center gap-6" role="group" aria-label="Studio navigation">
+          <div className="studio-options mt-6 flex flex-wrap justify-center gap-3 w-full max-w-3xl" role="group" aria-label="Choose a studio">
+            {studios.map((studio, i) => {
+              const Icon = studio.icon;
+              return (
+                <button
+                  key={studio.to}
+                  type="button"
+                  aria-pressed={i === safeIndex}
+                  onClick={() => setIndex(i)}
+                  className="studio-option inline-flex items-center justify-center gap-3 rounded-2xl min-h-[84px] px-3 sm:px-5 py-4 text-base sm:text-lg font-medium focus-ring"
+                  style={{ '--option-accent': studio.crystalColor } as CSSProperties}
+                >
+                  <Icon className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
+                  {studio.title}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-7 flex items-center justify-center gap-4 sm:gap-6" role="group" aria-label="Studio navigation">
             <button
               type="button"
               onClick={() => go(-1)}
               aria-label="Previous studio"
-              className={`group/arrow h-14 sm:h-16 w-32 sm:w-40 gap-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/40 flex items-center justify-center shadow-[0_0_24px_rgba(56,189,248,0.15)] transition-colors duration-200 hover:bg-white/20 hover:border-white/70 active:bg-white/25 focus-ring ${active.color}`}
+              className={`studio-nav-button group/arrow h-14 sm:h-16 min-w-32 sm:min-w-40 px-5 gap-3 rounded-full border border-white/10 flex items-center justify-center transition-colors duration-200 hover:bg-white/5 hover:border-white/25 focus-ring ${active.color}`}
             >
-              <ChevronLeft className="w-7 h-7 sm:w-8 sm:h-8 drop-shadow-[0_0_6px_currentColor] transition-transform duration-300 group-hover/arrow:-translate-x-0.5" strokeWidth={3} />
-              <span className="text-sm sm:text-base font-semibold text-white">Previous</span>
+              <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 transition-transform duration-300 group-hover/arrow:-translate-x-0.5" strokeWidth={3} />
+              <span className="text-base sm:text-lg font-medium text-white/80">Previous</span>
             </button>
             <button
               type="button"
               onClick={() => go(1)}
               aria-label="Next studio"
-              className={`group/arrow h-14 sm:h-16 w-32 sm:w-40 gap-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/40 flex items-center justify-center shadow-[0_0_24px_rgba(56,189,248,0.15)] transition-colors duration-200 hover:bg-white/20 hover:border-white/70 active:bg-white/25 focus-ring ${active.color}`}
+              className={`studio-nav-button group/arrow h-14 sm:h-16 min-w-32 sm:min-w-40 px-5 gap-3 rounded-full border border-white/10 flex items-center justify-center transition-colors duration-200 hover:bg-white/5 hover:border-white/25 focus-ring ${active.color}`}
             >
-              <span className="text-sm sm:text-base font-semibold text-white">Next</span>
-              <ChevronRight className="w-7 h-7 sm:w-8 sm:h-8 drop-shadow-[0_0_6px_currentColor] transition-transform duration-300 group-hover/arrow:translate-x-0.5" strokeWidth={3} />
+              <span className="text-base sm:text-lg font-medium text-white/80">Next</span>
+              <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 transition-transform duration-300 group-hover/arrow:translate-x-0.5" strokeWidth={3} />
             </button>
           </div>
+          <p className="mt-5 text-sm sm:text-base text-center text-white/55">Tap the studio name to open · Swipe or use arrows to explore</p>
         </section>
 
         {user && (
-          <p className="mt-8 text-center text-xs text-white/40">
+          <p className="mt-10 text-center text-base text-white/60">
             Managing your profile?{' '}
             <TransitionLink
               to="/account"

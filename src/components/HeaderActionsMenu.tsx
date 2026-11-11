@@ -44,12 +44,13 @@ export const HeaderActionsMenu: React.FC<HeaderActionsMenuProps> = ({
     <div className={`relative z-60 ${className}`.trim()}>
       <button
         onClick={() => setIsOpen((current) => !current)}
-        className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-bold transition-all ${isOpen ? 'border-white/20 bg-white/10 text-white' : 'border-transparent text-white/60 hover:border-white/10 hover:bg-white/5 hover:text-white'}`}
+        className={`flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-bold transition-all ${isOpen ? 'border-white/20 bg-white/10 text-white' : 'border-transparent text-white/60 hover:border-white/10 hover:bg-white/5 hover:text-white'}`}
+        aria-label="Actions"
         aria-haspopup="menu"
         aria-expanded={isOpen}
       >
         <span className="hidden sm:inline">Actions</span>
-        <Settings className="h-4 w-4 sm:hidden" />
+        <Settings className="h-5 w-5 shrink-0 sm:hidden" />
         <svg className={`hidden h-4 w-4 transition-transform duration-200 sm:block ${isOpen ? 'rotate-180 text-white' : 'opacity-50'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>

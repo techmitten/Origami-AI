@@ -66,7 +66,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
 
   return (
     <header
-      className={`relative z-50 w-full mx-auto mb-6 sm:mb-10 h-16 flex items-center justify-between px-4 sm:px-8 max-w-7xl transition-all duration-500 ${pinDuringRouteTransition ? 'app-header-pinned' : ''} ${className}`.trim()}
+      className={`relative z-50 w-full mx-auto mb-6 sm:mb-10 min-h-16 sm:h-16 flex flex-wrap sm:flex-nowrap items-center justify-between gap-y-2 px-0 sm:px-8 max-w-7xl transition-all duration-500 ${pinDuringRouteTransition ? 'app-header-pinned' : ''} ${className}`.trim()}
     >
       {/* Left Content */}
       {leftContent ? (
@@ -91,7 +91,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
             <img
               src="/modlogo.png"
               alt="Origami logo"
-              className="h-11 sm:h-14 w-auto object-contain"
+              className="h-11 sm:h-14 w-auto max-w-[112px] sm:max-w-none object-contain"
             />
           </TransitionLink>
         </div>
@@ -105,15 +105,15 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
       )}
 
       {/* Right Content */}
-      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+      <div className="flex items-center gap-1 sm:gap-2 shrink-0 ml-auto">
         {rightContent && <div className="flex items-center gap-1 sm:gap-2 shrink-0">{rightContent}</div>}
 
-        <div className="flex items-center gap-2 mr-2">
+        <div className="flex items-center gap-2 mr-0 sm:mr-2">
           {loading ? (
             <div className="w-20 h-8 rounded-lg bg-white/5 animate-pulse" />
           ) : user ? (
             <div className="flex items-center gap-3 bg-white/5 pl-3 pr-1 py-1 rounded-full border border-white/10">
-              <span className="text-sm text-white/80 max-w-[120px] truncate" title={user.email || 'User'}>
+              <span className="hidden sm:inline text-sm text-white/80 max-w-[120px] truncate" title={user.email || 'User'}>
                 {user.email}
               </span>
               <button
@@ -133,10 +133,11 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
                 }
                 setIsAuthModalOpen(true);
               }}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyan-600/80 hover:bg-cyan-500 text-white text-sm font-medium transition-colors"
+              aria-label="Sign in"
+              className="flex items-center gap-2 px-2 sm:px-3 py-2 sm:py-1.5 rounded-lg bg-cyan-600/80 hover:bg-cyan-500 text-white text-sm font-medium transition-colors"
             >
               <UserIcon className="w-4 h-4" />
-              <span>Sign In</span>
+              <span className="hidden min-[380px]:inline">Sign In</span>
             </button>
           )}
         </div>
