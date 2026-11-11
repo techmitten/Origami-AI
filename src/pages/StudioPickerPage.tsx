@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Layers,
   Bot,
@@ -154,10 +154,13 @@ export const StudioPickerPage: React.FC = () => {
   const [index, setIndex] = useState(0);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
+  const [swiping, setSwiping] = useState(false);
+  const swipeStart = useRef<{ id: number; x: number; y: number } | null>(null);
+  const suppressSwipeClick = useRef(false);
   const [reduceMotion] = useState(
     () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
   );
-  const paused = hovered || focused;
+  const paused = hovered || focused || swiping;
 
   // The list grows by one when signing in/out; keep the index in range.
   const safeIndex = index % studios.length;
@@ -169,13 +172,25 @@ export const StudioPickerPage: React.FC = () => {
     [studios.length],
   );
 
+  // Keep auto-rotation independent of the navigation controls.
+  useEffect(() => {
+    if (paused || reduceMotion) return;
+    const timer = window.setTimeout(() => go(1), ROTATE_MS);
+    return () => window.clearTimeout(timer);
+  }, [go, index, paused, reduceMotion]);
+
   return (
     <div className="isolate min-h-screen bg-[#121215] text-white pt-8 pb-2 flex flex-col px-4 sm:px-8">
-      {/* Aurora background: a brand-gradient curtain of light over the dark base. */}
-      <div className="fixed inset-0 -z-50 pointer-events-none" aria-hidden="true">
-        <Aurora colorStops={['#22d3ee', '#3b82f6', '#8b5cf6']} amplitude={1.1} blend={0.6} speed={0.8} />
-        {/* Fade toward the bottom so the footer and dots stay legible. */}
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#121215]/30 to-[#121215]" />
+      {/* Muted aurora adds a soft wash of colour over the dark base. */}
+      <div className="fixed inset-0 -z-50 pointer-events-none overflow-hidden" aria-hidden="true">
+        <Aurora
+          className="opacity-30 blur-3xl"
+          colorStops={['#155e75', '#1e3a8a', '#4c1d95']}
+          amplitude={0.8}
+          blend={0.8}
+          speed={0.4}
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#121215]/20 via-[#121215]/60 to-[#121215]" />
       </div>
 
       {/* This page is the app's landing screen, so the header offers no back
@@ -188,17 +203,10 @@ export const StudioPickerPage: React.FC = () => {
 
       {/* Main Content */}
       <main className="mx-auto max-w-5xl w-full mb-8 animate-slide-up flex-grow">
-        <div className="text-center mb-10">
-          <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight mb-3">
-            Choose a{' '}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-violet-400">
-              Studio
-            </span>
+        <div className="text-center mb-4 sm:mb-6">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white tracking-tight">
+            Choose a Studio
           </h1>
-          <p className="text-white/60 max-w-2xl mx-auto leading-relaxed">
-            Everything runs entirely in your browser for maximum privacy and performance.
-            Pick a workspace from the orb to get started.
-          </p>
           {user?.email && (
             <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/60">
               <UserIcon className="w-3.5 h-3.5 text-cyan-400" />
@@ -230,15 +238,72 @@ export const StudioPickerPage: React.FC = () => {
             }
           }}
         >
-          <div className="relative w-[min(92vw,560px)] aspect-square">
+          <div
+            className="studio-orb relative w-full max-w-[560px] aspect-square"
+            style={{ touchAction: 'pan-y pinch-zoom' }}
+            onPointerDown={(event) => {
+              if (!event.isPrimary || event.button !== 0) return;
+              suppressSwipeClick.current = false;
+              swipeStart.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
+              setSwiping(true);
+            }}
+            onPointerMove={(event) => {
+              const start = swipeStart.current;
+              if (!start || start.id !== event.pointerId) return;
+              const dx = event.clientX - start.x;
+              const dy = event.clientY - start.y;
+              if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.3) {
+                // Capture only after a horizontal drag so taps still reach links.
+                event.currentTarget.setPointerCapture(event.pointerId);
+                suppressSwipeClick.current = true;
+              }
+            }}
+            onPointerUp={(event) => {
+              const start = swipeStart.current;
+              if (!start || start.id !== event.pointerId) return;
+              const dx = event.clientX - start.x;
+              const dy = event.clientY - start.y;
+              if (Math.abs(dx) >= 40 && Math.abs(dx) > Math.abs(dy) * 1.3) {
+                suppressSwipeClick.current = true;
+                go(dx < 0 ? 1 : -1);
+              }
+              swipeStart.current = null;
+              setSwiping(false);
+            }}
+            onPointerCancel={() => {
+              swipeStart.current = null;
+              setSwiping(false);
+            }}
+            onPointerLeave={(event) => {
+              if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
+                swipeStart.current = null;
+                setSwiping(false);
+              }
+            }}
+            onLostPointerCapture={(event) => {
+              // A touch initially belongs to the tapped child; transferring
+              // capture to the orb also bubbles that child's lost-capture event.
+              if (event.target !== event.currentTarget) return;
+              swipeStart.current = null;
+              setSwiping(false);
+            }}
+            onClickCapture={(event) => {
+              if (suppressSwipeClick.current && event.detail > 0) {
+                event.preventDefault();
+                event.stopPropagation();
+              }
+            }}
+          >
             <Orb
               galaxyBackground
               colors={active.orb}
-              hoverIntensity={1}
+              hoverIntensity={0.2}
               trail={1}
-              glow={1.2}
-              rotateOnHover
-              followCursor
+              glow={0.7}
+              highlight={0.5}
+              opacity={0.75}
+              rotateOnHover={false}
+              followCursor={false}
             />
 
             {/* Centre "digital display". Clicking the disc advances to the next
@@ -248,7 +313,7 @@ export const StudioPickerPage: React.FC = () => {
               className="absolute inset-0 flex items-center justify-center pointer-events-none"
               aria-live={paused ? 'polite' : 'off'}
             >
-              <div className="group relative pointer-events-auto w-[64%] aspect-square rounded-full flex items-center justify-center text-center transition-colors duration-300 hover:bg-white/[0.03]">
+              <div className="group studio-orb-center relative pointer-events-auto w-1/2 aspect-square rounded-full flex items-center justify-center text-center transition-colors duration-300 hover:bg-white/[0.03]">
                 <button
                   type="button"
                   onClick={() => go(1)}
@@ -257,90 +322,55 @@ export const StudioPickerPage: React.FC = () => {
                 />
                 <div
                   key={active.to}
-                  className="studio-display-in pointer-events-none relative z-10 flex flex-col items-center w-[86%] max-w-[300px]"
+                  className="studio-display-in pointer-events-none relative z-10 flex flex-col items-center w-full max-w-[300px]"
                 >
-                  <span className="font-mono text-[10px] sm:text-xs tracking-[0.3em] text-white/45 mb-3 tabular-nums">
-                    {String(safeIndex + 1).padStart(2, '0')} / {String(studios.length).padStart(2, '0')}
-                  </span>
                   <div
-                    className={`w-11 h-11 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center border mb-3 transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-3 ${active.bg} ${active.border}`}
+                    className={`studio-orb-icon rounded-2xl flex items-center justify-center border transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-3 ${active.bg} ${active.border}`}
                   >
                     <ActiveIcon className={`w-5 h-5 sm:w-7 sm:h-7 ${active.color}`} />
                   </div>
-                  <h2 className="font-mono text-lg sm:text-2xl font-bold text-white tracking-tight mb-1.5">
+                  <h2 className="studio-orb-title font-mono font-bold text-white tracking-tight">
                     <ScrambleText key={active.title} text={active.title} />
                   </h2>
                   <TransitionLink
                     to={active.to}
                     aria-label={`Open ${active.title}: ${active.description}`}
-                    className={`pointer-events-auto mt-2 sm:mt-0 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs sm:text-sm font-semibold bg-black/30 backdrop-blur-md transition-colors hover:bg-white/10 ${active.border} ${active.color}`}
+                    className={`studio-orb-open pointer-events-auto inline-flex items-center justify-center gap-2 rounded-full border px-4 font-semibold bg-slate-950/85 backdrop-blur-md transition-colors hover:bg-slate-900 ${active.border} ${active.color}`}
                   >
-                    Open {active.title}
+                    Open Studio
                     <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
                   </TransitionLink>
                 </div>
               </div>
             </div>
 
-            {/* Prev/next arrows are embedded in the orb's body: recessed
-                frosted dials sitting in the dark interior just inside the
-                glowing rim, tinted with the active studio's accent so they
-                feel wired into the palette. The interior band between the
-                rim and the centre display is narrow, so they are sized to
-                fit it without touching either. */}
+
+          </div>
+
+          {/* Mobile: description sits under the orb where there is room for it. */}
+          <p className="sm:hidden mt-2 min-h-[4.5rem] max-w-sm text-center text-sm text-white/60 leading-relaxed">
+            {active.description}
+          </p>
+
+          <div className="mt-3 flex items-center justify-center gap-6" role="group" aria-label="Studio navigation">
             <button
               type="button"
               onClick={() => go(-1)}
               aria-label="Previous studio"
-              className={`group/arrow absolute left-[12%] top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/40 backdrop-blur-sm border border-white/10 flex items-center justify-center transition-all duration-300 hover:bg-black/55 hover:border-white/25 hover:shadow-[inset_0_3px_14px_rgba(0,0,0,0.65),inset_0_-2px_6px_rgba(255,255,255,0.1)] active:scale-95 focus-ring shadow-[inset_0_2px_10px_rgba(0,0,0,0.6),inset_0_-2px_6px_rgba(255,255,255,0.08)] ${active.color}`}
+              className={`group/arrow h-14 sm:h-16 w-32 sm:w-40 gap-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/40 flex items-center justify-center shadow-[0_0_24px_rgba(56,189,248,0.15)] transition-colors duration-200 hover:bg-white/20 hover:border-white/70 active:bg-white/25 focus-ring ${active.color}`}
             >
-              <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 drop-shadow-[0_0_6px_currentColor] transition-transform duration-300 group-hover/arrow:-translate-x-0.5" strokeWidth={3} />
+              <ChevronLeft className="w-7 h-7 sm:w-8 sm:h-8 drop-shadow-[0_0_6px_currentColor] transition-transform duration-300 group-hover/arrow:-translate-x-0.5" strokeWidth={3} />
+              <span className="text-sm sm:text-base font-semibold text-white">Previous</span>
             </button>
             <button
               type="button"
               onClick={() => go(1)}
               aria-label="Next studio"
-              className={`group/arrow absolute right-[12%] top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/40 backdrop-blur-sm border border-white/10 flex items-center justify-center transition-all duration-300 hover:bg-black/55 hover:border-white/25 hover:shadow-[inset_0_3px_14px_rgba(0,0,0,0.65),inset_0_-2px_6px_rgba(255,255,255,0.1)] active:scale-95 focus-ring shadow-[inset_0_2px_10px_rgba(0,0,0,0.6),inset_0_-2px_6px_rgba(255,255,255,0.08)] ${active.color}`}
+              className={`group/arrow h-14 sm:h-16 w-32 sm:w-40 gap-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/40 flex items-center justify-center shadow-[0_0_24px_rgba(56,189,248,0.15)] transition-colors duration-200 hover:bg-white/20 hover:border-white/70 active:bg-white/25 focus-ring ${active.color}`}
             >
-              <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 drop-shadow-[0_0_6px_currentColor] transition-transform duration-300 group-hover/arrow:translate-x-0.5" strokeWidth={3} />
+              <span className="text-sm sm:text-base font-semibold text-white">Next</span>
+              <ChevronRight className="w-7 h-7 sm:w-8 sm:h-8 drop-shadow-[0_0_6px_currentColor] transition-transform duration-300 group-hover/arrow:translate-x-0.5" strokeWidth={3} />
             </button>
-          </div>
-
-          {/* Mobile: description sits under the orb where there is room for it. */}
-          <p className="sm:hidden mt-2 max-w-sm text-center text-sm text-white/60 leading-relaxed">
-            {active.description}
-          </p>
-
-          {/* Indicators double as a progress bar for the auto-rotation. */}
-          <div className="mt-4 flex items-center gap-2">
-            {studios.map((studio, i) => (
-              <button
-                key={studio.to}
-                type="button"
-                onClick={() => setIndex(i)}
-                aria-label={`Show ${studio.title}`}
-                aria-current={i === safeIndex}
-                className={`relative h-1.5 rounded-full overflow-hidden transition-all duration-300 focus-ring ${
-                  i === safeIndex ? 'w-10 bg-white/15' : 'w-1.5 bg-white/25 hover:bg-white/50'
-                }`}
-              >
-                {i === safeIndex && (
-                  <span
-                    key={studio.to}
-                    className="absolute inset-0 origin-left bg-white/80 rounded-full"
-                    style={
-                      reduceMotion
-                        ? undefined
-                        : {
-                            animation: `studio-display-progress ${ROTATE_MS}ms linear forwards`,
-                            animationPlayState: paused ? 'paused' : 'running',
-                          }
-                    }
-                    onAnimationEnd={() => go(1)}
-                  />
-                )}
-              </button>
-            ))}
           </div>
         </section>
 

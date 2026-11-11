@@ -804,6 +804,45 @@ input[type="text"], input[type="number"], input[type="url"], textarea, select {
 }
 
 /* Studio picker: each studio fades into the orb's centre display. */
+.studio-orb {
+  container-type: inline-size;
+}
+
+.studio-orb-center::before {
+  content: '';
+  position: absolute;
+  inset: -12%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgb(2 6 23 / 80%), rgb(2 6 23 / 35%) 45%, transparent 70%);
+  pointer-events: none;
+}
+
+.studio-orb-icon {
+  width: clamp(40px, 11cqi, 60px);
+  height: clamp(40px, 11cqi, 60px);
+  margin-bottom: clamp(8px, 2cqi, 12px);
+  background-color: rgb(2 6 23 / 65%);
+}
+
+.studio-orb-title {
+  width: 100%;
+  font-size: clamp(18px, 5cqi, 28px);
+  line-height: 1.15;
+  min-height: 2.3em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-wrap: balance;
+  text-shadow: 0 2px 12px #020617;
+  margin-bottom: clamp(8px, 2cqi, 12px);
+}
+
+.studio-orb-open {
+  min-height: 44px;
+  font-size: clamp(12px, 2.6cqi, 14px);
+  white-space: nowrap;
+}
+
 @keyframes studio-display-in {
   0% {
     opacity: 0;
@@ -812,15 +851,6 @@ input[type="text"], input[type="number"], input[type="url"], textarea, select {
   100% {
     opacity: 1;
     filter: blur(0);
-  }
-}
-
-@keyframes studio-display-progress {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
   }
 }
 
