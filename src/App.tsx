@@ -23,13 +23,12 @@ import backgroundImage from './assets/images/background.png';
 import { useModal } from './context/ModalContext';
 import { BrowserVideoRenderer, videoEvents } from './services/BrowserVideoRenderer';
 import { analyzeVideoNarrationWithGemini } from './services/geminiFileAnalysisService';
-import { AiModeChoiceModal } from './components/AiModeChoiceModal';
 import { WebGPUInstructionsModal } from './components/WebGPUInstructionsModal';
 import { BackgroundDownloadProvider } from './components/BackgroundDownloadProvider';
 import { useBackgroundDownload } from './context/BackgroundDownloadContext';
 import { NotificationProvider } from './components/NotificationProvider';
 import { DownloadBlockedModal } from './components/DownloadBlockedModal';
-import { initWebLLM, webLlmEvents, checkWebGPUSupport, getDefaultWebLlmModel, getWebLlmModelInfo } from './services/webLlmService';
+import { webLlmEvents } from './services/webLlmService';
 import { exportProjectArchive, importProjectArchive } from './services/projectArchiveService';
 import { SceneAlignmentPage } from './pages/SceneAlignmentPage';
 import { AssistantPage } from './pages/AssistantPage';
@@ -82,10 +81,9 @@ function MainApp() {
   const [globalSettings, setGlobalSettings] = useState<GlobalSettings | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
-  const [isAiModeChoiceModalOpen, setIsAiModeChoiceModalOpen] = useState(false);
   const [isWebGPUModalOpen, setIsWebGPUModalOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<'general' | 'tts' | 'webllm' | 'ai-prompt' | 'api'>('general');
-  const { isBackgroundDownloadActive, startBackgroundDownloads, endBackgroundDownloads } = useBackgroundDownload();
+  const { isBackgroundDownloadActive } = useBackgroundDownload();
   const [appDownloadBlockedAction, setAppDownloadBlockedAction] = useState<string | null>(null);
   const [renderResolution, setRenderResolution] = useState<'1080p' | '720p'>('1080p');
   const [aspectRatio] = useState<'16:9' | '9:16' | '1:1' | '4:3'>('16:9');
@@ -485,23 +483,6 @@ function MainApp() {
   };
 
   const renderer = useMemo(() => new BrowserVideoRenderer(), []);
-  const waitForTTSInitialization = React.useCallback((quantization: 'q8' | 'q4'): Promise<void> => {
-    return new Promise<void>((resolve, reject) => {
-      const handleInitComplete = () => {
-        ttsEvents.removeEventListener('tts-init-complete', handleInitComplete);
-        resolve();
-      };
-
-      ttsEvents.addEventListener('tts-init-complete', handleInitComplete);
-
-      try {
-        initTTS(quantization);
-      } catch (error) {
-        ttsEvents.removeEventListener('tts-init-complete', handleInitComplete);
-        reject(error);
-      }
-    });
-  }, []);
 
   const enforceTtsEnabled = React.useCallback((slide: SlideData): SlideData => {
     if (slide.isTtsDisabled === false) return slide;
@@ -662,126 +643,35 @@ function MainApp() {
     load();
   }, [renderer, enforceTtsEnabled]);
 
-  // Kick off resource loading (cached TTS/FFmpeg init, and the AI mode choice
-  // modal if it hasn't been answered yet) on mount. Visitors without a project
-  // are redirected straight to the studio picker ("/studios"), so skip the
-  // work there — it runs once a project is actually open in the editor (a
-  // restored session, a picker "Open Slide Studio" entry, or an upload).
+  // Keep in-memory settings synced if the studio picker's background setup updates them.
+  useEffect(() => {
+    const handleGlobalSettingsUpdated = () => {
+      loadGlobalSettings().then((settings) => {
+        if (settings) setGlobalSettings(settings);
+      }).catch(console.error);
+    };
+    window.addEventListener('global-settings-updated', handleGlobalSettingsUpdated);
+    return () => window.removeEventListener('global-settings-updated', handleGlobalSettingsUpdated);
+  }, []);
+
+  // Kick off cached TTS/FFmpeg init on mount once a project is open in the editor.
+  // AI engine choice happens as the 2nd step on the studio picker's crystal ball.
   const resourceInitStartedRef = useRef(false);
   useEffect(() => {
     if (isRestoring || resourceInitStartedRef.current) return;
     if (!(slides.length > 0 || enteredEditorWithoutPdf)) return;
     resourceInitStartedRef.current = true;
 
-    // Check resource cache status
     const cached = JSON.parse(localStorage.getItem('resource_cache_status') || '{"tts":false,"ffmpeg":false,"webllm":false}');
-
-    // Init preinstalled/cached resources now that the user has moved past the lander
     if (cached.tts) initTTS(globalSettings?.ttsQuantization || 'q8');
     if (cached.ffmpeg) renderer.load().catch(console.error);
 
-    // Do not eagerly initialize WebLLM on startup.
-    // Keeping a large GPU model resident while restoring projects and preparing render
-    // resources has caused tab instability on some systems. WebLLM is initialized on demand.
-
-    const hideSetupModal = localStorage.getItem('hide_setup_modal') === 'true';
-
-    // Ask the on-device-AI vs. BYOK question if it hasn't been answered yet.
-    if (!hideSetupModal) {
-      setIsAiModeChoiceModalOpen(true);
+    if (sessionStorage.getItem('origami_open_settings_tab') === 'api') {
+      sessionStorage.removeItem('origami_open_settings_tab');
+      setSettingsInitialTab('api');
+      setIsSettingsOpen(true);
     }
   }, [isRestoring, slides.length, enteredEditorWithoutPdf, renderer, globalSettings]);
-
-  const handleSetupConfirm = async (_dontShowAgain?: boolean) => {
-    // Clicking Continue starts the background downloads. Persist the acknowledgment
-    // even without the "don't show again" checkbox so navigating away (e.g. to
-    // /shorts) or refreshing during the download doesn't re-prompt the setup modal.
-    setSyncedPreference('hide_setup_modal', 'true');
-
-    const cached = JSON.parse(localStorage.getItem('resource_cache_status') || '{"tts":false,"ffmpeg":false,"webllm":false}');
-    const queue = {
-      tts: !cached.tts,
-      ffmpeg: !cached.ffmpeg,
-      webllm: !cached.webllm,
-    };
-
-    if (!queue.tts && !queue.ffmpeg && !queue.webllm) return;
-
-    startBackgroundDownloads(queue);
-
-    try {
-      // Downloads run strictly one at a time: TTS -> FFmpeg -> WebLLM.
-      if (queue.tts) {
-        await waitForTTSInitialization(globalSettings?.ttsQuantization || 'q8');
-      }
-
-      if (queue.ffmpeg) {
-        await renderer.load();
-      }
-
-      if (queue.webllm) {
-        const webgpuStatus = await checkWebGPUSupport();
-        if (webgpuStatus.supported) {
-          // Respect a model the user already configured, as long as it's still
-          // compatible with this device's WebGPU capabilities.
-          const configuredModel = getWebLlmModelInfo(globalSettings?.webLlmModel);
-          const isConfiguredModelCompatible = configuredModel && (webgpuStatus.hasF16 || configuredModel.precision === 'f32');
-          const model = isConfiguredModelCompatible ? configuredModel!.id : getDefaultWebLlmModel(webgpuStatus.hasF16);
-          await handlePartialGlobalSettings({ useWebLLM: true, webLlmModel: model });
-          await initWebLLM(model, () => {});
-        } else {
-          setIsWebGPUModalOpen(true);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to complete background setup downloads:', error);
-    } finally {
-      endBackgroundDownloads();
-    }
-  };
-
-  // Handlers for the AI mode choice modal shown right after "Get Started".
-  const handleAiModeChoiceSkip = () => {
-    setIsAiModeChoiceModalOpen(false);
-    setSyncedPreference('hide_setup_modal', 'true');
-  };
-
-  const handleAiModeChoiceWebLLM = async () => {
-    setIsAiModeChoiceModalOpen(false);
-    await handleSetupConfirm();
-  };
-
-  const handleAiModeChoiceBYOK = async () => {
-    setIsAiModeChoiceModalOpen(false);
-    setSyncedPreference('hide_setup_modal', 'true');
-
-    // Make sure WebLLM stays off, then open Settings on the API tab so the
-    // user can drop their key straight in.
-    if (globalSettings?.useWebLLM) {
-      await handlePartialGlobalSettings({ useWebLLM: false });
-    }
-    setSettingsInitialTab('api');
-    setIsSettingsOpen(true);
-
-    // Voice narration and video rendering still need to download — only skip WebLLM.
-    const cached = JSON.parse(localStorage.getItem('resource_cache_status') || '{"tts":false,"ffmpeg":false,"webllm":false}');
-    const queue = { tts: !cached.tts, ffmpeg: !cached.ffmpeg, webllm: false };
-    if (!queue.tts && !queue.ffmpeg) return;
-
-    startBackgroundDownloads(queue);
-    try {
-      if (queue.tts) {
-        await waitForTTSInitialization(globalSettings?.ttsQuantization || 'q8');
-      }
-      if (queue.ffmpeg) {
-        await renderer.load();
-      }
-    } catch (error) {
-      console.error('Failed to complete background BYOK setup downloads:', error);
-    } finally {
-      endBackgroundDownloads();
-    }
-  };
 
   // Save state on changes
   React.useEffect(() => {
@@ -2042,13 +1932,6 @@ function MainApp() {
       <TutorialModal
         isOpen={isTutorialOpen}
         onClose={() => setIsTutorialOpen(false)}
-      />
-
-      <AiModeChoiceModal
-        isOpen={isAiModeChoiceModalOpen}
-        onSelectWebLLM={handleAiModeChoiceWebLLM}
-        onSelectBYOK={handleAiModeChoiceBYOK}
-        onSkip={handleAiModeChoiceSkip}
       />
 
       <WebGPUInstructionsModal

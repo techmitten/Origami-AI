@@ -8,13 +8,18 @@ import {
   LibraryBig,
   ChevronLeft,
   ChevronRight,
+  Cpu,
+  KeyRound,
+  ArrowRight,
   User as UserIcon,
 } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
 import { Footer } from '../components/Footer';
-import { TransitionLink } from '../components/TransitionLink';
+import { TransitionLink, useTransitionNavigate } from '../components/TransitionLink';
 import { usePageMeta } from '../hooks/usePageMeta';
 import { useAuth } from '../context/AuthContext';
+import { useBackgroundDownload } from '../context/BackgroundDownloadContext';
+import { setSyncedPreference } from '../services/preferences';
 import CrystalizedBall from '../components/CrystalizedBall';
 import ParticleText from '../components/ParticleText';
 
@@ -128,6 +133,8 @@ export const StudioPickerPage: React.FC = () => {
   });
 
   const { user } = useAuth();
+  const navigate = useTransitionNavigate();
+  const { runSetupDownloads } = useBackgroundDownload();
 
   // The studios offered on this page.
 
@@ -149,6 +156,7 @@ export const StudioPickerPage: React.FC = () => {
     : STUDIOS;
 
   const [index, setIndex] = useState(0);
+  const [step, setStep] = useState<'studio' | 'ai-engine'>('studio');
   const swipeStart = useRef<{ id: number; x: number; y: number } | null>(null);
   const suppressSwipeClick = useRef(false);
   // The list grows by one when signing in/out; keep the index in range.
@@ -160,6 +168,30 @@ export const StudioPickerPage: React.FC = () => {
     (delta: number) => setIndex((i) => (i + delta + studios.length) % studios.length),
     [studios.length],
   );
+
+  const handleOpenStudio = useCallback(() => {
+    if (localStorage.getItem('hide_setup_modal') === 'true') {
+      navigate(active.to);
+      return;
+    }
+    setStep('ai-engine');
+  }, [active.to, navigate]);
+
+  const handleSelectWebLLM = useCallback(() => {
+    void runSetupDownloads('webllm');
+    navigate(active.to);
+  }, [active.to, navigate, runSetupDownloads]);
+
+  const handleSelectBYOK = useCallback(() => {
+    sessionStorage.setItem('origami_open_settings_tab', 'api');
+    void runSetupDownloads('byok');
+    navigate(active.to);
+  }, [active.to, navigate, runSetupDownloads]);
+
+  const handleSkipAiChoice = useCallback(() => {
+    setSyncedPreference('hide_setup_modal', 'true');
+    navigate(active.to);
+  }, [active.to, navigate]);
 
   return (
     <div className="studio-picker isolate min-h-screen text-white pt-6 pb-2 flex flex-col px-4 sm:px-8"
@@ -177,13 +209,15 @@ export const StudioPickerPage: React.FC = () => {
       {/* Main Content */}
       <main className="mx-auto max-w-5xl w-full mb-8 flex-grow">
         <div className="text-center mt-5 sm:mt-8">
-          <p className="text-[10px] sm:text-xs font-mono uppercase tracking-[0.3em] text-white/45">Your ideas, taking shape</p>
+          <p className="text-[10px] sm:text-xs font-mono uppercase tracking-[0.3em] text-white/45">
+            {step === 'ai-engine' ? 'AI setup · Step 2 of 2' : 'Your ideas, taking shape'}
+          </p>
           <h1
             className="font-display text-white -my-4 sm:-my-5"
             style={{ width: '100%', height: 'clamp(110px, 14vw, 150px)' }}
           >
             <ParticleText
-              text="What will you create?"
+              text={step === 'ai-engine' ? 'Choose your AI text engine' : 'What will you create?'}
               particleSize={2}
               density={3}
               color="currentColor"
@@ -207,7 +241,11 @@ export const StudioPickerPage: React.FC = () => {
               style={{ height: '100%', minHeight: 0 }}
             />
           </h1>
-          <p className="text-sm sm:text-base text-white/50">Pick your tools. Make something yours.</p>
+          <p className="text-sm sm:text-base text-white/50">
+            {step === 'ai-engine'
+              ? 'Origami writes narration scripts and drives the assistant with AI. Pick where that generation happens.'
+              : 'Pick your tools. Make something yours.'}
+          </p>
           {user?.email && (
             <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/60">
               <UserIcon className="w-3.5 h-3.5 text-cyan-400" />
@@ -224,6 +262,13 @@ export const StudioPickerPage: React.FC = () => {
           aria-label="Studios"
           className="relative flex flex-col items-center mt-2 sm:mt-0"
           onKeyDown={(e) => {
+            if (step === 'ai-engine') {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                setStep('studio');
+              }
+              return;
+            }
             if (e.key === 'ArrowRight') {
               e.preventDefault();
               go(1);
@@ -237,11 +282,13 @@ export const StudioPickerPage: React.FC = () => {
             className="studio-orb relative w-full max-w-[560px] sm:max-w-[700px] lg:max-w-[760px] sm:-my-4 aspect-square"
             style={{ touchAction: 'pan-y pinch-zoom' }}
             onPointerDown={(event) => {
+              if (step !== 'studio') return;
               if (!event.isPrimary || event.button !== 0) return;
               suppressSwipeClick.current = false;
               swipeStart.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
             }}
             onPointerMove={(event) => {
+              if (step !== 'studio') return;
               const start = swipeStart.current;
               if (!start || start.id !== event.pointerId) return;
               const dx = event.clientX - start.x;
@@ -253,6 +300,7 @@ export const StudioPickerPage: React.FC = () => {
               }
             }}
             onPointerUp={(event) => {
+              if (step !== 'studio') return;
               const start = swipeStart.current;
               if (!start || start.id !== event.pointerId) return;
               const dx = event.clientX - start.x;
@@ -309,78 +357,155 @@ export const StudioPickerPage: React.FC = () => {
               paused={false}
             />
 
-            {/* Keep the primary link inside the glass; navigation lives below. */}
+            {/* Keep the primary link or 2nd-step AI engine cards inside the glass; navigation lives below. */}
             <div
               className="absolute inset-0 flex items-center justify-center pointer-events-none"
               aria-live="polite" aria-atomic="true"
             >
-              <div className="group studio-orb-center relative w-1/2 aspect-square rounded-full flex items-center justify-center text-center transition-colors duration-300 hover:bg-white/[0.03]">
-                <TransitionLink
-                  key={active.to}
-                  to={active.to}
-                  draggable={false}
-                  aria-label={`Open ${active.title}: ${active.description}`}
-                  className="studio-display-in pointer-events-auto relative z-10 flex flex-col items-center justify-center w-full max-w-[300px] sm:max-w-[360px] min-h-32 rounded-2xl focus-ring"
-                >
-                  <div
-                    className={`studio-orb-icon rounded-2xl flex items-center justify-center border transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-3 ${active.bg} ${active.border}`}
+              {step === 'studio' ? (
+                <div className="group studio-orb-center relative w-1/2 aspect-square rounded-full flex items-center justify-center text-center transition-colors duration-300 hover:bg-white/[0.03]">
+                  <button
+                    key={active.to}
+                    type="button"
+                    onClick={handleOpenStudio}
+                    aria-label={`Open ${active.title}: ${active.description}`}
+                    className="studio-display-in pointer-events-auto relative z-10 flex flex-col items-center justify-center w-full max-w-[300px] sm:max-w-[360px] min-h-32 rounded-2xl cursor-pointer focus-ring"
                   >
-                    <ActiveIcon className={`w-5 h-5 sm:w-8 sm:h-8 ${active.color}`} />
-                  </div>
-                  <h2 className="studio-orb-title font-mono font-bold text-white tracking-tight">
-                    <ScrambleText key={active.title} text={active.title} />
-                  </h2>
-                </TransitionLink>
+                    <div
+                      className={`studio-orb-icon rounded-2xl flex items-center justify-center border transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-3 ${active.bg} ${active.border}`}
+                    >
+                      <ActiveIcon className={`w-5 h-5 sm:w-8 sm:h-8 ${active.color}`} />
+                    </div>
+                    <h2 className="studio-orb-title font-mono font-bold text-white tracking-tight">
+                      <ScrambleText key={active.title} text={active.title} />
+                    </h2>
+                  </button>
+                </div>
+              ) : (
+                <div
+                  key="ai-engine-choice"
+                  className="studio-display-in pointer-events-auto relative z-10 w-[84%] sm:w-[62%] max-w-[430px] rounded-[1.75rem] border border-white/12 bg-[#0b0f18]/75 backdrop-blur-xl shadow-[0_25px_70px_-25px_rgba(0,0,0,0.95),0_0_45px_rgba(34,211,238,0.07)] overflow-hidden flex"
+                >
+                  <button
+                    type="button"
+                    onClick={handleSelectWebLLM}
+                    className="group relative flex-1 flex flex-col items-center justify-start gap-2.5 px-3 sm:px-5 pt-6 pb-7 text-center transition-colors duration-300 hover:bg-cyan-400/[0.07] focus-ring"
+                  >
+                    <span className="text-[8.5px] sm:text-[9.5px] font-bold uppercase tracking-wide text-emerald-300 bg-emerald-500/10 border border-emerald-400/25 rounded-full px-2 py-0.5">
+                      No key required
+                    </span>
+                    <span className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-400/25 flex items-center justify-center text-cyan-300">
+                      <Cpu className="w-5 h-5" />
+                    </span>
+                    <span className="text-[13px] sm:text-base font-semibold text-white flex items-center gap-1.5">
+                      On-Device AI
+                      <ArrowRight className="w-3.5 h-3.5 text-cyan-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+                    </span>
+                    <span className="text-[10px] sm:text-[11px] leading-relaxed text-white/50">
+                      Runs a local model in your browser via WebGPU/WebLLM. Private, free, no account needed. Requires a reasonably modern GPU.
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSelectBYOK}
+                    className="group relative flex-1 flex flex-col items-center justify-start gap-2.5 px-3 sm:px-5 pt-6 pb-7 text-center transition-colors duration-300 hover:bg-violet-400/[0.07] focus-ring"
+                  >
+                    <span className="invisible text-[8.5px] sm:text-[9.5px] font-bold uppercase tracking-wide rounded-full px-2 py-0.5" aria-hidden="true">
+                      No key required
+                    </span>
+                    <span className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-400/25 flex items-center justify-center text-violet-300">
+                      <KeyRound className="w-5 h-5" />
+                    </span>
+                    <span className="text-[13px] sm:text-base font-semibold text-white flex items-center gap-1.5">
+                      Bring Your Own Key
+                      <ArrowRight className="w-3.5 h-3.5 text-violet-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+                    </span>
+                    <span className="text-[10px] sm:text-[11px] leading-relaxed text-white/50">
+                      Use your own cloud LLM API key instead. Faster and works on any device, but requests leave your browser.
+                    </span>
+                  </button>
+
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-y-[12%] left-1/2 w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-white/25 to-transparent"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {step === 'studio' ? (
+            <>
+              <p className="-mt-4 sm:-mt-10 min-h-[6rem] sm:min-h-[4rem] max-w-xl px-3 text-center text-lg sm:text-xl text-white/75 leading-relaxed" aria-live="polite" aria-atomic="true">
+                {active.description}
+              </p>
+
+              <div className="studio-options mt-6 flex flex-wrap justify-center gap-3 w-full max-w-3xl" role="group" aria-label="Choose a studio">
+                {studios.map((studio, i) => {
+                  const Icon = studio.icon;
+                  return (
+                    <button
+                      key={studio.to}
+                      type="button"
+                      aria-pressed={i === safeIndex}
+                      onClick={() => setIndex(i)}
+                      className="studio-option inline-flex items-center justify-center gap-3 rounded-2xl min-h-[84px] px-3 sm:px-5 py-4 text-base sm:text-lg font-medium focus-ring"
+                      style={{ '--option-accent': studio.crystalColor } as CSSProperties}
+                    >
+                      <Icon className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
+                      {studio.title}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-7 flex items-center justify-center gap-4 sm:gap-6" role="group" aria-label="Studio navigation">
+                <button
+                  type="button"
+                  onClick={() => go(-1)}
+                  aria-label="Previous studio"
+                  className={`studio-nav-button group/arrow h-14 sm:h-16 min-w-32 sm:min-w-40 px-5 gap-3 rounded-full border border-white/10 flex items-center justify-center transition-colors duration-200 hover:bg-white/5 hover:border-white/25 focus-ring ${active.color}`}
+                >
+                  <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 transition-transform duration-300 group-hover/arrow:-translate-x-0.5" strokeWidth={3} />
+                  <span className="text-base sm:text-lg font-medium text-white/80">Previous</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => go(1)}
+                  aria-label="Next studio"
+                  className={`studio-nav-button group/arrow h-14 sm:h-16 min-w-32 sm:min-w-40 px-5 gap-3 rounded-full border border-white/10 flex items-center justify-center transition-colors duration-200 hover:bg-white/5 hover:border-white/25 focus-ring ${active.color}`}
+                >
+                  <span className="text-base sm:text-lg font-medium text-white/80">Next</span>
+                  <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 transition-transform duration-300 group-hover/arrow:translate-x-0.5" strokeWidth={3} />
+                </button>
+              </div>
+              <p className="mt-5 text-sm sm:text-base text-center text-white/55">Tap the studio name to open · Swipe or use arrows to explore</p>
+            </>
+          ) : (
+            <div className="-mt-4 sm:-mt-8 flex flex-col items-center gap-4 text-center">
+              <p className="text-xs sm:text-sm text-white/45">
+                Voice narration and video rendering download either way.
+              </p>
+              <div className="flex items-center justify-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => setStep('studio')}
+                  className={`studio-nav-button group/arrow h-11 px-5 gap-2 rounded-full border border-white/10 flex items-center justify-center transition-colors duration-200 hover:bg-white/5 hover:border-white/25 focus-ring ${active.color}`}
+                >
+                  <ChevronLeft className="w-4 h-4 transition-transform duration-300 group-hover/arrow:-translate-x-0.5" strokeWidth={2.5} />
+                  <span className="text-sm font-medium text-white/80">Back to studios</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSkipAiChoice}
+                  className="text-xs sm:text-sm text-white/40 hover:text-white/70 transition-colors cursor-pointer underline decoration-dotted underline-offset-4 focus-ring rounded px-2 py-1"
+                >
+                  Decide later
+                </button>
               </div>
             </div>
-
-
-          </div>
-
-          <p className="-mt-4 sm:-mt-10 min-h-[6rem] sm:min-h-[4rem] max-w-xl px-3 text-center text-lg sm:text-xl text-white/75 leading-relaxed" aria-live="polite" aria-atomic="true">
-            {active.description}
-          </p>
-
-          <div className="studio-options mt-6 flex flex-wrap justify-center gap-3 w-full max-w-3xl" role="group" aria-label="Choose a studio">
-            {studios.map((studio, i) => {
-              const Icon = studio.icon;
-              return (
-                <button
-                  key={studio.to}
-                  type="button"
-                  aria-pressed={i === safeIndex}
-                  onClick={() => setIndex(i)}
-                  className="studio-option inline-flex items-center justify-center gap-3 rounded-2xl min-h-[84px] px-3 sm:px-5 py-4 text-base sm:text-lg font-medium focus-ring"
-                  style={{ '--option-accent': studio.crystalColor } as CSSProperties}
-                >
-                  <Icon className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
-                  {studio.title}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="mt-7 flex items-center justify-center gap-4 sm:gap-6" role="group" aria-label="Studio navigation">
-            <button
-              type="button"
-              onClick={() => go(-1)}
-              aria-label="Previous studio"
-              className={`studio-nav-button group/arrow h-14 sm:h-16 min-w-32 sm:min-w-40 px-5 gap-3 rounded-full border border-white/10 flex items-center justify-center transition-colors duration-200 hover:bg-white/5 hover:border-white/25 focus-ring ${active.color}`}
-            >
-              <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 transition-transform duration-300 group-hover/arrow:-translate-x-0.5" strokeWidth={3} />
-              <span className="text-base sm:text-lg font-medium text-white/80">Previous</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => go(1)}
-              aria-label="Next studio"
-              className={`studio-nav-button group/arrow h-14 sm:h-16 min-w-32 sm:min-w-40 px-5 gap-3 rounded-full border border-white/10 flex items-center justify-center transition-colors duration-200 hover:bg-white/5 hover:border-white/25 focus-ring ${active.color}`}
-            >
-              <span className="text-base sm:text-lg font-medium text-white/80">Next</span>
-              <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 transition-transform duration-300 group-hover/arrow:translate-x-0.5" strokeWidth={3} />
-            </button>
-          </div>
-          <p className="mt-5 text-sm sm:text-base text-center text-white/55">Tap the studio name to open · Swipe or use arrows to explore</p>
+          )}
         </section>
 
         {user && (

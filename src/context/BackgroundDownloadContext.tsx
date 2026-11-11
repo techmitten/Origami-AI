@@ -11,6 +11,7 @@ interface BackgroundDownloadContextType {
   activeDownloads: DownloadQueue;
   startBackgroundDownloads: (queue: DownloadQueue) => void;
   endBackgroundDownloads: () => void;
+  runSetupDownloads: (mode: 'webllm' | 'byok') => Promise<void>;
 }
 
 export const BackgroundDownloadContext = createContext<BackgroundDownloadContextType | undefined>(undefined);

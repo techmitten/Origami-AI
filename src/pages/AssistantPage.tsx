@@ -335,7 +335,13 @@ export const AssistantPage: React.FC = () => {
         ? savedWorkspace.currentChatId
         : initialSessions[0].id;
 
-      const mergedSettings = savedSettings ? { ...DEFAULT_GLOBAL_SETTINGS, ...savedSettings } : DEFAULT_GLOBAL_SETTINGS;
+      let mergedSettings = savedSettings ? { ...DEFAULT_GLOBAL_SETTINGS, ...savedSettings } : DEFAULT_GLOBAL_SETTINGS;
+      if (sessionStorage.getItem('origami_open_settings_tab') === 'api') {
+        sessionStorage.removeItem('origami_open_settings_tab');
+        mergedSettings = { ...mergedSettings, useWebLLM: false, assistantUseOpenAI: true };
+        await saveGlobalSettings(mergedSettings);
+        setIsSettingsOpen(true);
+      }
       setGlobalSettings(mergedSettings);
       setChatSessions(sortAssistantSessions(initialSessions));
       setCurrentChatId(initialCurrentChatId);
@@ -355,8 +361,20 @@ export const AssistantPage: React.FC = () => {
       setIsBootstrapping(false);
     });
 
+    const handleGlobalSettingsUpdated = () => {
+      loadGlobalSettings()
+        .then((settings) => {
+          if (isMounted && settings) {
+            setGlobalSettings((prev) => ({ ...prev, ...settings }));
+          }
+        })
+        .catch(() => {});
+    };
+    window.addEventListener('global-settings-updated', handleGlobalSettingsUpdated);
+
     return () => {
       isMounted = false;
+      window.removeEventListener('global-settings-updated', handleGlobalSettingsUpdated);
     };
   }, []);
 

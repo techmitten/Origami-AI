@@ -16,9 +16,7 @@ import { PageHeader } from '../components/PageHeader';
 import { GlobalSettingsModal } from '../components/GlobalSettingsModal';
 import { WebGPUInstructionsModal } from '../components/WebGPUInstructionsModal';
 import { WebLLMLoadingModal } from '../components/WebLLMLoadingModal';
-import { AiModeChoiceModal } from '../components/AiModeChoiceModal';
 import { MusicPickerModal } from '../components/MusicPickerModal';
-import { useBackgroundDownload } from '../context/BackgroundDownloadContext';
 import { ShortsComposeStage } from '../components/shorts/ShortsComposeStage';
 import { ShortsStoryboardStage } from '../components/shorts/ShortsStoryboardStage';
 import { ShortsPreviewPlayer } from '../components/shorts/ShortsPreviewPlayer';
@@ -105,13 +103,9 @@ export const ShortsPage: React.FC = () => {
     setIsMusicPickerOpen,
     isVoiceAuditionOpen,
     setIsVoiceAuditionOpen,
-    isAiModeChoiceModalOpen,
-    setIsAiModeChoiceModalOpen,
     isPollinationsInfoOpen,
     setIsPollinationsInfoOpen,
   } = useShortsModals();
-
-  const { startBackgroundDownloads, endBackgroundDownloads } = useBackgroundDownload();
 
   const generationAbortRef = useRef<AbortController | null>(null);
   const projectRef = useRef(project);
@@ -129,17 +123,12 @@ export const ShortsPage: React.FC = () => {
     fileName,
   } = useShortsRender({ project, projectRef, showAlert, pendingLibraryDownloadRef });
 
-  const { imageModels, videoModels, handleAiModeChoiceWebLLM, handleAiModeChoiceBYOK, handleAiModeChoiceSkip } = useShortsRuntimeSetup({
+  const { imageModels, videoModels } = useShortsRuntimeSetup({
     defaultGlobalSettings: DEFAULT_GLOBAL_SETTINGS,
-    globalSettings,
     setGlobalSettings,
     setProject,
     setStage,
-    setIsAiModeChoiceModalOpen,
     setIsSettingsOpen,
-    setIsWebGPUModalOpen,
-    startBackgroundDownloads,
-    endBackgroundDownloads,
     generationAbortRef,
     renderAbortRef,
   });
@@ -734,13 +723,6 @@ export const ShortsPage: React.FC = () => {
         isOpen={isMusicPickerOpen}
         onClose={() => setIsMusicPickerOpen(false)}
         onSelectTrack={handleSelectTrack}
-      />
-
-      <AiModeChoiceModal
-        isOpen={isAiModeChoiceModalOpen}
-        onSelectWebLLM={handleAiModeChoiceWebLLM}
-        onSelectBYOK={handleAiModeChoiceBYOK}
-        onSkip={handleAiModeChoiceSkip}
       />
 
       <WebGPUInstructionsModal isOpen={isWebGPUModalOpen} onClose={() => setIsWebGPUModalOpen(false)} />

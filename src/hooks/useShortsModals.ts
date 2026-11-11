@@ -1,13 +1,12 @@
 import { useState } from 'react';
 
-/** The 7 modal-open booleans used across the Shorts page, bundled into one hook. */
+/** The modal-open booleans used across the Shorts page, bundled into one hook. */
 export function useShortsModals() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isWebGPUModalOpen, setIsWebGPUModalOpen] = useState(false);
   const [isWebLLMLoadingOpen, setIsWebLLMLoadingOpen] = useState(false);
   const [isMusicPickerOpen, setIsMusicPickerOpen] = useState(false);
   const [isVoiceAuditionOpen, setIsVoiceAuditionOpen] = useState(false);
-  const [isAiModeChoiceModalOpen, setIsAiModeChoiceModalOpen] = useState(false);
   const [isPollinationsInfoOpen, setIsPollinationsInfoOpen] = useState(false);
 
   return {
@@ -21,8 +20,6 @@ export function useShortsModals() {
     setIsMusicPickerOpen,
     isVoiceAuditionOpen,
     setIsVoiceAuditionOpen,
-    isAiModeChoiceModalOpen,
-    setIsAiModeChoiceModalOpen,
     isPollinationsInfoOpen,
     setIsPollinationsInfoOpen,
   };
