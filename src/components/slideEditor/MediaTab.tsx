@@ -31,11 +31,11 @@ export const MediaTab: React.FC<MediaTabProps> = ({
           <div className="space-y-2 max-w-sm">
             <h4 className="text-lg font-bold text-white">Upload Media File</h4>
             <p className="text-sm text-white/60 leading-relaxed">
-              Insert an MP4 video or animated GIF as a standalone slide.
+              Insert an MP4 video or animated GIF as a slide, or add a PDF's pages after your current slides.
             </p>
           </div>
 
-          <input type="file" ref={mediaInputRef} className="hidden" accept="video/mp4,image/gif" onChange={handleMediaUpload} />
+          <input type="file" ref={mediaInputRef} className="hidden" accept="video/mp4,image/gif,application/pdf,.pdf" onChange={handleMediaUpload} />
           <button
             onClick={() => mediaInputRef.current?.click()}
             className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-white/25 bg-branding-primary text-white font-extrabold text-xs uppercase tracking-wider shadow-lg shadow-branding-primary/30 hover:bg-branding-primary/90 hover:border-white/40 hover:shadow-xl hover:shadow-branding-primary/40 active:scale-[0.98] transition-all"

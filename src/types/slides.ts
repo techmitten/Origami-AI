@@ -121,6 +121,8 @@ export interface SlideEditorProps {
   onViewModeChange: (mode: SlideEditorViewMode) => void;
   onOpenSettings?: () => void;
   onStartScreenRecord?: () => void;
+  /** Renders a PDF and appends its pages as image slides (keeps existing slides). */
+  onAppendPdf?: (file: File) => Promise<void>;
   defaultToolsConfigTab?: 'overview' | 'voice' | 'mixing' | 'tools' | 'media';
   aspectRatio?: '16:9' | '9:16' | '1:1' | '4:3';
   cursorData?: any;

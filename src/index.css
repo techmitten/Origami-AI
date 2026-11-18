@@ -813,7 +813,6 @@ input[type="text"], input[type="number"], input[type="url"], textarea, select {
 }
 
 .studio-option {
-  flex: 0 0 calc((100% - 24px) / 3);
   color: rgb(255 255 255 / 70%);
   border: 1px solid rgb(255 255 255 / 18%);
   background: linear-gradient(180deg, #222b35, #141b23);
@@ -821,15 +820,211 @@ input[type="text"], input[type="number"], input[type="url"], textarea, select {
   transition: background 180ms ease, border-color 180ms ease, color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
 }
 
-@media (max-width: 639px) {
-  .studio-option {
-    flex-basis: calc((100% - 12px) / 2);
+/* Studio picker stage. Narrow: orb, details and a chip strip stacked, with
+   the orb absorbing the leftover height. Wide: rail | orb | details. */
+.studio-title {
+  width: 100%;
+  height: clamp(64px, min(11vw, 13svh), 128px);
+  margin-block: -0.5rem -0.25rem;
+}
+
+.studio-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.studio-stage {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 220px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  container-type: size;
+}
+
+/* The AI engine panel sits inside the orb and is taller than the studio
+   display, so the orb must not shrink below it. */
+.studio-stage--panel {
+  min-height: 310px;
+}
+
+/* On short screens the panel itself explains the choice. */
+@media (max-height: 720px) and (max-width: 1023px) {
+  .studio-step-intro {
+    display: none;
   }
 }
 
-@media (max-width: 359px) {
-  .studio-option {
-    flex-basis: 100%;
+.studio-stage > .studio-orb {
+  width: min(100cqw, 100cqh, 760px);
+}
+
+.studio-rail {
+  display: none;
+}
+
+.studio-details {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.875rem;
+  text-align: center;
+  max-width: 34rem;
+}
+
+.studio-description {
+  font-size: 1rem;
+  line-height: 1.5;
+  min-height: 3em;
+  text-wrap: balance;
+}
+
+.studio-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  height: 3rem;
+  padding-inline: 1.375rem;
+  border-radius: 999px;
+  font-weight: 600;
+  color: #04121a;
+  background: var(--option-accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--option-accent) 60%, white), 0 10px 30px -8px color-mix(in srgb, var(--option-accent) 55%, transparent);
+  transition: filter 160ms ease, transform 160ms ease, background 300ms ease;
+}
+
+.studio-open:hover {
+  filter: brightness(1.08);
+}
+
+.studio-open:active {
+  transform: translateY(1px);
+}
+
+.studio-orb-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-top: -1.375rem;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.studio-chips {
+  display: flex;
+  gap: 0.5rem;
+  width: calc(100% + 2rem);
+  margin-inline: -1rem;
+  padding: 0.25rem 1rem 0.5rem;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.studio-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.studio-chip {
+  flex: 0 0 auto;
+  scroll-snap-align: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 2.75rem;
+  padding-inline: 1rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 12%), 0 3px 0 #05080c;
+}
+
+@media (min-width: 640px) {
+  .studio-chips {
+    justify-content: center;
+    flex-wrap: wrap;
+    overflow: visible;
+    width: 100%;
+    margin-inline: 0;
+  }
+}
+
+@media (min-width: 1024px) {
+  .studio-layout {
+    display: grid;
+    grid-template-columns: minmax(200px, 1fr) minmax(0, 2.3fr) minmax(200px, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    align-items: center;
+    column-gap: 2rem;
+    padding-bottom: 1rem;
+  }
+
+  .studio-stage {
+    height: 100%;
+    min-height: 300px;
+  }
+
+  .studio-rail {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.25rem;
+    justify-self: end;
+    width: 100%;
+    max-width: 15rem;
+  }
+
+  .studio-rail-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.7rem 0.9rem;
+    border-radius: 0.75rem;
+    font-size: 1rem;
+    font-weight: 500;
+    text-align: left;
+    color: rgb(255 255 255 / 55%);
+    transition: color 180ms ease, background 180ms ease;
+  }
+
+  .studio-rail-item:hover {
+    color: white;
+    background: rgb(255 255 255 / 4%);
+  }
+
+  .studio-rail-item[aria-pressed="true"] {
+    color: var(--option-accent);
+    background: color-mix(in srgb, var(--option-accent) 9%, transparent);
+  }
+
+  .studio-details {
+    align-items: flex-start;
+    text-align: left;
+    justify-self: start;
+    max-width: 17rem;
+    gap: 1.25rem;
+  }
+
+  .studio-description {
+    font-size: 1.125rem;
+    min-height: 4.5em;
+    text-wrap: pretty;
+  }
+
+  .studio-orb-arrow,
+  .studio-chips {
+    display: none;
   }
 }
 

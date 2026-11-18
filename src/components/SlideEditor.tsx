@@ -68,6 +68,7 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
   viewMode,
   onOpenSettings,
   onStartScreenRecord,
+  onAppendPdf,
   defaultToolsConfigTab = 'tools',
   aspectRatio = '16:9',
   isDownloading = false,
@@ -228,13 +229,23 @@ export const SlideEditor: React.FC<SlideEditorProps> = ({
 
   const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    const isPdf = !!file && (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'));
+    if (file && isPdf) {
+      if (mediaInputRef.current) mediaInputRef.current.value = '';
+      if (!onAppendPdf) {
+        showAlert("PDF upload isn't available here.", { type: 'error', title: 'Invalid File' });
+        return;
+      }
+      await onAppendPdf(file);
+      return;
+    }
     if (file) {
       const url = URL.createObjectURL(file);
       const isVideo = file.type.startsWith('video/') || file.name.endsWith('.mp4');
       const isGif = file.type === 'image/gif' || file.name.endsWith('.gif');
 
       if (!isVideo && !isGif) {
-        showAlert("Please upload an MP4 video or a GIF.", { type: 'error', title: 'Invalid File' });
+        showAlert("Please upload an MP4 video, a GIF, or a PDF.", { type: 'error', title: 'Invalid File' });
         return;
       }
 

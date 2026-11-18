@@ -11,11 +11,10 @@ import {
   Cpu,
   KeyRound,
   ArrowRight,
-  User as UserIcon,
 } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
 import { Footer } from '../components/Footer';
-import { TransitionLink, useTransitionNavigate } from '../components/TransitionLink';
+import { useTransitionNavigate } from '../components/TransitionLink';
 import { usePageMeta } from '../hooks/usePageMeta';
 import { useAuth } from '../context/AuthContext';
 import { useBackgroundDownload } from '../context/BackgroundDownloadContext';
@@ -194,7 +193,7 @@ export const StudioPickerPage: React.FC = () => {
   }, [active.to, navigate]);
 
   return (
-    <div className="studio-picker isolate min-h-screen text-white pt-6 pb-2 flex flex-col px-4 sm:px-8"
+    <div className="studio-picker isolate min-h-[100svh] text-white pt-4 sm:pt-6 flex flex-col px-4 sm:px-8"
       style={{ '--studio-accent': active.crystalColor } as CSSProperties}>
       <div className="studio-picker-ambient fixed inset-0 -z-10 pointer-events-none" aria-hidden="true" />
 
@@ -206,16 +205,15 @@ export const StudioPickerPage: React.FC = () => {
         showSettings={false}
       />
 
-      {/* Main Content */}
-      <main className="mx-auto max-w-5xl w-full mb-8 flex-grow">
-        <div className="text-center mt-5 sm:mt-8">
-          <p className="text-[10px] sm:text-xs font-mono uppercase tracking-[0.3em] text-white/45">
-            {step === 'ai-engine' ? 'AI setup · Step 2 of 2' : 'Your ideas, taking shape'}
-          </p>
-          <h1
-            className="font-display text-white -my-4 sm:-my-5"
-            style={{ width: '100%', height: 'clamp(110px, 14vw, 150px)' }}
-          >
+      {/* The whole picker is one screen-high stage: the title, side panels,
+          and footer take what they need and the orb fills whatever is left,
+          so nothing sits below the fold on any reasonable viewport. */}
+      <main className="studio-main mx-auto max-w-6xl w-full flex-1 min-h-0 flex flex-col">
+        <div className="text-center shrink-0">
+          {step === 'ai-engine' && (
+            <p className="text-xs sm:text-sm text-white/45 mt-1">Step 2 of 2</p>
+          )}
+          <h1 className="studio-title font-display text-white">
             <ParticleText
               text={step === 'ai-engine' ? 'Choose your AI text engine' : 'What will you create?'}
               particleSize={2}
@@ -234,25 +232,17 @@ export const StudioPickerPage: React.FC = () => {
               repelRadius={120}
               idleDrift={0.7}
               trigger="hover"
-              fontSize="clamp(2.25rem, 6vw, 4.25rem)"
+              fontSize="clamp(1.75rem, min(5.5vw, 7svh), 4rem)"
               fontWeight={800}
               fontFamily="inherit"
               glow
               style={{ height: '100%', minHeight: 0 }}
             />
           </h1>
-          <p className="text-sm sm:text-base text-white/50">
-            {step === 'ai-engine'
-              ? 'Origami writes narration scripts and drives the assistant with AI. Pick where that generation happens.'
-              : 'Pick your tools. Make something yours.'}
-          </p>
-          {user?.email && (
-            <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/60">
-              <UserIcon className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="max-w-[220px] truncate" title={user.email}>
-                Signed in as {user.email}
-              </span>
-            </div>
+          {step === 'ai-engine' && (
+            <p className="studio-step-intro text-sm sm:text-base text-white/50 max-w-[60ch] mx-auto">
+              Origami writes narration scripts and drives the assistant with AI. Pick where that generation happens.
+            </p>
           )}
         </div>
 
@@ -260,7 +250,7 @@ export const StudioPickerPage: React.FC = () => {
           role="region"
           aria-roledescription="carousel"
           aria-label="Studios"
-          className="relative flex flex-col items-center mt-2 sm:mt-0"
+          className="studio-layout flex-1 min-h-0"
           onKeyDown={(e) => {
             if (step === 'ai-engine') {
               if (e.key === 'Escape') {
@@ -278,8 +268,32 @@ export const StudioPickerPage: React.FC = () => {
             }
           }}
         >
+          {/* Wide screens: the studios as a rail to the orb's left. */}
+          <div className="studio-rail" role="group" aria-label="Choose a studio">
+            {studios.map((studio, i) => {
+              const Icon = studio.icon;
+              return (
+                <button
+                  key={studio.to}
+                  type="button"
+                  aria-pressed={i === safeIndex}
+                  onClick={() => {
+                    setIndex(i);
+                    setStep('studio');
+                  }}
+                  className="studio-rail-item focus-ring"
+                  style={{ '--option-accent': studio.crystalColor } as CSSProperties}
+                >
+                  <Icon className="w-5 h-5 shrink-0" />
+                  {studio.title}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className={`studio-stage ${step === 'ai-engine' ? 'studio-stage--panel' : ''}`}>
           <div
-            className="studio-orb relative w-full max-w-[560px] sm:max-w-[700px] lg:max-w-[760px] sm:-my-4 aspect-square"
+            className="studio-orb relative aspect-square"
             style={{ touchAction: 'pan-y pinch-zoom' }}
             onPointerDown={(event) => {
               if (step !== 'studio') return;
@@ -384,7 +398,7 @@ export const StudioPickerPage: React.FC = () => {
               ) : (
                 <div
                   key="ai-engine-choice"
-                  className="studio-display-in pointer-events-auto relative z-10 w-[84%] sm:w-[62%] max-w-[430px] rounded-[1.75rem] border border-white/12 bg-[#0b0f18]/75 backdrop-blur-xl shadow-[0_25px_70px_-25px_rgba(0,0,0,0.95),0_0_45px_rgba(34,211,238,0.07)] overflow-hidden flex"
+                  className="studio-display-in pointer-events-auto relative z-10 w-[84%] sm:w-[max(62%,400px)] max-w-[430px] rounded-[1.75rem] border border-white/12 bg-[#0b0f18]/75 backdrop-blur-xl shadow-[0_25px_70px_-25px_rgba(0,0,0,0.95),0_0_45px_rgba(34,211,238,0.07)] overflow-hidden flex"
                 >
                   <button
                     type="button"
@@ -435,93 +449,95 @@ export const StudioPickerPage: React.FC = () => {
             </div>
           </div>
 
-          {step === 'studio' ? (
+          {step === 'studio' && (
             <>
-              <p className="-mt-4 sm:-mt-10 min-h-[6rem] sm:min-h-[4rem] max-w-xl px-3 text-center text-lg sm:text-xl text-white/75 leading-relaxed" aria-live="polite" aria-atomic="true">
-                {active.description}
-              </p>
-
-              <div className="studio-options mt-6 flex flex-wrap justify-center gap-3 w-full max-w-3xl" role="group" aria-label="Choose a studio">
-                {studios.map((studio, i) => {
-                  const Icon = studio.icon;
-                  return (
-                    <button
-                      key={studio.to}
-                      type="button"
-                      aria-pressed={i === safeIndex}
-                      onClick={() => setIndex(i)}
-                      className="studio-option inline-flex items-center justify-center gap-3 rounded-2xl min-h-[84px] px-3 sm:px-5 py-4 text-base sm:text-lg font-medium focus-ring"
-                      style={{ '--option-accent': studio.crystalColor } as CSSProperties}
-                    >
-                      <Icon className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
-                      {studio.title}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="mt-7 flex items-center justify-center gap-4 sm:gap-6" role="group" aria-label="Studio navigation">
-                <button
-                  type="button"
-                  onClick={() => go(-1)}
-                  aria-label="Previous studio"
-                  className={`studio-nav-button group/arrow h-14 sm:h-16 min-w-32 sm:min-w-40 px-5 gap-3 rounded-full border border-white/10 flex items-center justify-center transition-colors duration-200 hover:bg-white/5 hover:border-white/25 focus-ring ${active.color}`}
-                >
-                  <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 transition-transform duration-300 group-hover/arrow:-translate-x-0.5" strokeWidth={3} />
-                  <span className="text-base sm:text-lg font-medium text-white/80">Previous</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => go(1)}
-                  aria-label="Next studio"
-                  className={`studio-nav-button group/arrow h-14 sm:h-16 min-w-32 sm:min-w-40 px-5 gap-3 rounded-full border border-white/10 flex items-center justify-center transition-colors duration-200 hover:bg-white/5 hover:border-white/25 focus-ring ${active.color}`}
-                >
-                  <span className="text-base sm:text-lg font-medium text-white/80">Next</span>
-                  <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 transition-transform duration-300 group-hover/arrow:translate-x-0.5" strokeWidth={3} />
-                </button>
-              </div>
-              <p className="mt-5 text-sm sm:text-base text-center text-white/55">Tap the studio name to open · Swipe or use arrows to explore</p>
+              <button
+                type="button"
+                onClick={() => go(-1)}
+                aria-label="Previous studio"
+                className={`studio-orb-arrow studio-nav-button left-0 focus-ring ${active.color}`}
+              >
+                <ChevronLeft className="w-5 h-5" strokeWidth={3} />
+              </button>
+              <button
+                type="button"
+                onClick={() => go(1)}
+                aria-label="Next studio"
+                className={`studio-orb-arrow studio-nav-button right-0 focus-ring ${active.color}`}
+              >
+                <ChevronRight className="w-5 h-5" strokeWidth={3} />
+              </button>
             </>
-          ) : (
-            <div className="-mt-4 sm:-mt-8 flex flex-col items-center gap-4 text-center">
-              <p className="text-xs sm:text-sm text-white/45">
-                Voice narration and video rendering download either way.
-              </p>
-              <div className="flex items-center justify-center gap-4">
+          )}
+          </div>
+
+          <div className="studio-details">
+            {step === 'studio' ? (
+              <>
+                <p className="studio-description text-white/75" aria-live="polite" aria-atomic="true">
+                  {active.description}
+                </p>
                 <button
                   type="button"
-                  onClick={() => setStep('studio')}
-                  className={`studio-nav-button group/arrow h-11 px-5 gap-2 rounded-full border border-white/10 flex items-center justify-center transition-colors duration-200 hover:bg-white/5 hover:border-white/25 focus-ring ${active.color}`}
+                  onClick={handleOpenStudio}
+                  className="studio-open focus-ring"
+                  style={{ '--option-accent': active.crystalColor } as CSSProperties}
                 >
-                  <ChevronLeft className="w-4 h-4 transition-transform duration-300 group-hover/arrow:-translate-x-0.5" strokeWidth={2.5} />
-                  <span className="text-sm font-medium text-white/80">Back to studios</span>
+                  <ActiveIcon className="w-5 h-5 shrink-0" />
+                  Open {active.title}
                 </button>
-                <button
-                  type="button"
-                  onClick={handleSkipAiChoice}
-                  className="text-xs sm:text-sm text-white/40 hover:text-white/70 transition-colors cursor-pointer underline decoration-dotted underline-offset-4 focus-ring rounded px-2 py-1"
-                >
-                  Decide later
-                </button>
-              </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-white/50">
+                  Voice narration and video rendering download either way.
+                </p>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 justify-center lg:justify-start">
+                  <button
+                    type="button"
+                    onClick={() => setStep('studio')}
+                    className={`studio-nav-button group/arrow h-11 px-5 gap-2 rounded-full border border-white/10 flex items-center justify-center transition-colors duration-200 hover:bg-white/5 hover:border-white/25 focus-ring ${active.color}`}
+                  >
+                    <ChevronLeft className="w-4 h-4 transition-transform duration-300 group-hover/arrow:-translate-x-0.5" strokeWidth={2.5} />
+                    <span className="text-sm font-medium text-white/80">Back to studios</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSkipAiChoice}
+                    className="text-sm text-white/45 hover:text-white/75 transition-colors cursor-pointer underline decoration-dotted underline-offset-4 focus-ring rounded px-2 py-1"
+                  >
+                    Decide later
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Narrow screens: the studios as a swipeable strip under the orb. */}
+          {step === 'studio' && (
+            <div className="studio-chips" role="group" aria-label="Choose a studio">
+              {studios.map((studio, i) => {
+                const Icon = studio.icon;
+                return (
+                  <button
+                    key={studio.to}
+                    type="button"
+                    aria-pressed={i === safeIndex}
+                    onClick={() => setIndex(i)}
+                    className="studio-option studio-chip focus-ring"
+                    style={{ '--option-accent': studio.crystalColor } as CSSProperties}
+                  >
+                    <Icon className="w-4 h-4 shrink-0" />
+                    {studio.title}
+                  </button>
+                );
+              })}
             </div>
           )}
         </section>
-
-        {user && (
-          <p className="mt-10 text-center text-base text-white/60">
-            Managing your profile?{' '}
-            <TransitionLink
-              to="/account"
-              className="text-white/60 hover:text-cyan-400 transition-colors underline underline-offset-2 focus-ring rounded"
-            >
-              Visit Account Overview
-            </TransitionLink>
-          </p>
-        )}
       </main>
 
-      <Footer />
+      <Footer compact />
     </div>
   );
 };

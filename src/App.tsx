@@ -839,6 +839,40 @@ function MainApp() {
     }
   };
 
+  // Tools & Config > Slide Media: add a PDF's pages after the current slides
+  // without touching music, title, or the cloud link (unlike handleUploadPdf).
+  const handleAppendPdf = async (file: File) => {
+    if (isRenderingWithAudio || isRenderingSilent) {
+      showAlert('Wait for video rendering to complete before adding a PDF.', { type: 'warning', title: 'Upload Blocked' });
+      return;
+    }
+    if (isUploadingPdf) return;
+
+    setIsUploadingPdf(true);
+    setPdfOcrProgress({ status: null, progress: 0, currentPage: 0, totalPages: 0 });
+
+    try {
+      const pages = await renderPdfToImages(file);
+      const defaults = globalSettings?.isEnabled ? globalSettings : null;
+      const newSlides: SlideData[] = pages.map(page => ({
+        ...page,
+        id: crypto.randomUUID(),
+        script: page.text,
+        transition: defaults ? defaults.transition : 'fade',
+        voice: defaults ? defaults.voice : 'af_heart',
+        postAudioDelay: defaults ? defaults.delay : undefined,
+        type: 'image'
+      }));
+      setSlides(prev => [...prev, ...newSlides]);
+    } catch (error) {
+      console.error(error);
+      showAlert(error instanceof Error ? error.message : 'Failed to process PDF. Please try again.', { type: 'error', title: 'Upload Failed' });
+    } finally {
+      setIsUploadingPdf(false);
+      setPdfOcrProgress({ status: null, progress: 0, currentPage: 0, totalPages: 0 });
+    }
+  };
+
   // AI slide generation also replaces the current project, so confirm too.
   const handleCreateSlidesClick = async () => {
     if (slides.length > 0) {
@@ -1877,6 +1911,7 @@ function MainApp() {
                 onViewModeChange={setSlideEditorViewMode}
                 onOpenSettings={() => { setSettingsInitialTab('general'); setIsSettingsOpen(true); }}
                 onStartScreenRecord={handleStartScreenRecord}
+                onAppendPdf={handleAppendPdf}
                 defaultToolsConfigTab={enteredEditorWithoutPdf ? 'media' : 'tools'}
                 isDownloading={isBackgroundDownloadActive}
               />
